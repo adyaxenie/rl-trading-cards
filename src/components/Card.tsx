@@ -45,7 +45,7 @@ export default function Card({ player, isRevealed = true, onClick }: CardProps) 
       onClick={onClick}
       transition={{ duration: 0.6, ease: "easeInOut" }}
     >
-      <div className={`w-full h-full rounded-xl border-2 ${rarityBorder[player.rarity]} 
+      <div className={`w-1/2 h-full rounded-xl border-2 ${rarityBorder[player.rarity]} 
                       bg-gradient-to-br ${rarityColors[player.rarity]} 
                       bg-metal-800 relative overflow-hidden`}>
         
