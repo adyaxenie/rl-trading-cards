@@ -8,7 +8,7 @@ interface CardProps {
 }
 
 const rarityColors = {
-  'Super': 'from-white via-gray-100 to-white',
+  'Super': 'from-black via-black-100 to-black',
   'Epic': 'from-purple-600 via-purple-400 to-purple-600',
   'Rare': 'from-blue-600 via-blue-400 to-blue-600',
   'Common': 'from-gray-600 via-gray-400 to-gray-600',
@@ -37,7 +37,7 @@ export default function Card({ player, isRevealed = true, onClick }: CardProps) 
 
   return (
     <motion.div
-      className={`relative w-48 h-72 cursor-pointer perspective-1000 ${rarityGlow[player.rarity]}`}
+      className={`relative w-48 h-72 cursor-pointer perspective-1000 rounded-xl ${rarityGlow[player.rarity]}`}
       variants={cardVariants}
       initial="hidden"
       animate={isRevealed ? "revealed" : "hidden"}
@@ -45,7 +45,7 @@ export default function Card({ player, isRevealed = true, onClick }: CardProps) 
       onClick={onClick}
       transition={{ duration: 0.6, ease: "easeInOut" }}
     >
-      <div className={`w-1/2 h-full rounded-xl border-2 ${rarityBorder[player.rarity]} 
+      <div className={`w-full h-full rounded-xl border-2 ${rarityBorder[player.rarity]} 
                       bg-gradient-to-br ${rarityColors[player.rarity]} 
                       bg-metal-800 relative overflow-hidden`}>
         

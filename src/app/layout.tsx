@@ -4,7 +4,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'RL Trading Cards',
+  title: 'RL.TCG | Rocket League Trading Cards',
   description: 'Rocket League Pro Player Trading Cards',
 }
 

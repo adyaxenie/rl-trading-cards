@@ -65,27 +65,47 @@ export async function getAllPlayers(): Promise<Player[]> {
   return rows as Player[];
 }
 
-export async function getRandomCards(count: number = 5): Promise<Player[]> {
+export async function getRandomCards(count: number = 5, packType: string = 'standard'): Promise<Player[]> {
   const db = await getDb();
   const [players] = await db.execute('SELECT * FROM players');
   const playersArray = players as Player[];
   
-  // Weighted random selection based on rarity
+  // Different weighted selection based on pack type
   const weightedPlayers: Player[] = [];
-  playersArray.forEach(player => {
-    let weight: number;
-    switch(player.rarity) {
-      case 'Super': weight = 1; break;
-      case 'Epic': weight = 5; break;
-      case 'Rare': weight = 15; break;
-      case 'Common': weight = 30; break;
-      default: weight = 30;
-    }
-    
-    for (let i = 0; i < weight; i++) {
-      weightedPlayers.push(player);
-    }
-  });
+  
+  if (packType === 'premium') {
+    // Premium pack: Much higher odds for Super and Epic cards
+    playersArray.forEach(player => {
+      let weight: number;
+      switch(player.rarity) {
+        case 'Super': weight = 25; break;   // 25x higher chance than standard
+        case 'Epic': weight = 15; break;    // 3x higher chance than standard  
+        case 'Rare': weight = 8; break;     // Slightly lower than standard
+        case 'Common': weight = 2; break;   // Much lower than standard
+        default: weight = 2;
+      }
+      
+      for (let i = 0; i < weight; i++) {
+        weightedPlayers.push(player);
+      }
+    });
+  } else {
+    // Standard pack: Original odds
+    playersArray.forEach(player => {
+      let weight: number;
+      switch(player.rarity) {
+        case 'Super': weight = 1; break;
+        case 'Epic': weight = 5; break;
+        case 'Rare': weight = 15; break;
+        case 'Common': weight = 30; break;
+        default: weight = 30;
+      }
+      
+      for (let i = 0; i < weight; i++) {
+        weightedPlayers.push(player);
+      }
+    });
+  }
   
   const selectedCards: Player[] = [];
   for (let i = 0; i < count; i++) {
@@ -108,15 +128,125 @@ export async function addCardsToUser(userId: number = 1, cards: Player[]): Promi
   }
 }
 
-export async function recordPackOpening(userId: number = 1, creditsSpent: number, cards: Player[]): Promise<void> {
+export async function recordPackOpening(userId: number = 1, creditsSpent: number, cards: Player[], packType: string = 'Standard'): Promise<void> {
   const db = await getDb();
   await db.execute(`
     INSERT INTO pack_openings (user_id, pack_type, credits_spent, cards_obtained) 
-    VALUES (?, 'Standard', ?, ?)
-  `, [userId, creditsSpent, JSON.stringify(cards.map(c => c.id))]);
+    VALUES (?, ?, ?, ?)
+  `, [userId, packType, creditsSpent, JSON.stringify(cards.map(c => c.id))]);
   
   // Update total packs opened
   await db.execute(`
     UPDATE users SET total_packs_opened = total_packs_opened + 1 WHERE id = ?
   `, [userId]);
+}
+
+export interface UserCard {
+  id: number;
+  user_id: number;
+  player_id: number;
+  quantity: number;
+  first_obtained: Date;
+  player: Player;
+}
+
+export async function getUserInventory(userId: number = 1): Promise<UserCard[]> {
+  const db = await getDb();
+  const [rows] = await db.execute(`
+    SELECT 
+      uc.*,
+      p.id as player_id,
+      p.name,
+      p.team,
+      p.region,
+      p.defense,
+      p.offense,
+      p.mechanics,
+      p.challenges,
+      p.game_iq,
+      p.team_sync,
+      p.overall_rating,
+      p.rarity,
+      p.image_url,
+      p.created_at as player_created_at
+    FROM user_cards uc
+    JOIN players p ON uc.player_id = p.id
+    WHERE uc.user_id = ?
+    ORDER BY p.overall_rating DESC, uc.quantity DESC
+  `, [userId]);
+  
+  const userCards = rows as any[];
+  return userCards.map(row => ({
+    id: row.id,
+    user_id: row.user_id,
+    player_id: row.player_id,
+    quantity: row.quantity,
+    first_obtained: row.first_obtained,
+    player: {
+      id: row.player_id,
+      name: row.name,
+      team: row.team,
+      region: row.region,
+      defense: row.defense,
+      offense: row.offense,
+      mechanics: row.mechanics,
+      challenges: row.challenges,
+      game_iq: row.game_iq,
+      team_sync: row.team_sync,
+      overall_rating: row.overall_rating,
+      rarity: row.rarity,
+      image_url: row.image_url,
+      created_at: row.player_created_at,
+    }
+  }));
+}
+
+export async function getUserStats(userId: number = 1): Promise<{
+  totalCards: number;
+  uniqueCards: number;
+  totalPacks: number;
+  rarityBreakdown: { [key: string]: number };
+}> {
+  const db = await getDb();
+  
+  // Get total cards and unique cards
+  const [cardStats] = await db.execute(`
+    SELECT 
+      SUM(quantity) as total_cards,
+      COUNT(*) as unique_cards
+    FROM user_cards 
+    WHERE user_id = ?
+  `, [userId]);
+  
+  // Get total packs opened
+  const [userStats] = await db.execute(`
+    SELECT total_packs_opened FROM users WHERE id = ?
+  `, [userId]);
+  
+  // Get rarity breakdown
+  const [rarityStats] = await db.execute(`
+    SELECT 
+      p.rarity,
+      SUM(uc.quantity) as count
+    FROM user_cards uc
+    JOIN players p ON uc.player_id = p.id
+    WHERE uc.user_id = ?
+    GROUP BY p.rarity
+  `, [userId]);
+  
+  const cardStatsResult = cardStats as any[];
+  const userStatsResult = userStats as any[];
+  const rarityStatsResult = rarityStats as any[];
+  
+  const rarityBreakdown: { [key: string]: number } = {};
+  rarityStatsResult.forEach((row: any) => {
+    rarityBreakdown[row.rarity] = row.count;
+  });
+  
+  return {
+    totalCards: cardStatsResult[0]?.total_cards || 0,
+    uniqueCards: cardStatsResult[0]?.unique_cards || 0,
+    totalPacks: userStatsResult[0]?.total_packs_opened || 0,
+    rarityBreakdown
+  };
 }
