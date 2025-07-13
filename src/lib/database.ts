@@ -31,8 +31,8 @@ export interface User {
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '', // Add your MySQL password here
-  database: process.env.DB_NAME || 'rl_trading_cards',
+  password: process.env.DB_PASSWORD || '1212',
+  database: process.env.DB_NAME || 'rltcg',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -47,16 +47,17 @@ export async function getDb(): Promise<mysql.Pool> {
   return pool;
 }
 
-export async function getUserCredits(userId: number = 1): Promise<{ credits: number; last_credit_earn: Date }> {
+// Updated to work with authenticated users
+export async function getUserCredits(userId: number): Promise<{ credits: number; last_credit_earn: Date }> {
   const db = await getDb();
   const [rows] = await db.execute('SELECT credits, last_credit_earn FROM users WHERE id = ?', [userId]);
   const result = rows as any[];
   return result[0] || { credits: 100, last_credit_earn: new Date() };
 }
 
-export async function updateUserCredits(userId: number = 1, newCredits: number): Promise<void> {
+export async function updateUserCredits(userId: number, newCredits: number): Promise<void> {
   const db = await getDb();
-  await db.execute('UPDATE users SET credits = ? WHERE id = ?', [newCredits, userId]);
+  await db.execute('UPDATE users SET credits = ?, last_credit_earn = NOW() WHERE id = ?', [newCredits, userId]);
 }
 
 export async function getAllPlayers(): Promise<Player[]> {
@@ -73,7 +74,16 @@ export async function getRandomCards(count: number = 5, packType: string = 'stan
   // Different weighted selection based on pack type
   const weightedPlayers: Player[] = [];
   
-  if (packType === 'premium') {
+  if (packType === 'ultimate') {
+    // Ultimate pack: Only Super rarity cards
+    const superPlayers = playersArray.filter(player => player.rarity === 'Super');
+    const selectedCards: Player[] = [];
+    for (let i = 0; i < count; i++) {
+      const randomIndex = Math.floor(Math.random() * superPlayers.length);
+      selectedCards.push(superPlayers[randomIndex]);
+    }
+    return selectedCards;
+  } else if (packType === 'premium') {
     // Premium pack: Much higher odds for Super and Epic cards
     playersArray.forEach(player => {
       let weight: number;
@@ -116,7 +126,7 @@ export async function getRandomCards(count: number = 5, packType: string = 'stan
   return selectedCards;
 }
 
-export async function addCardsToUser(userId: number = 1, cards: Player[]): Promise<void> {
+export async function addCardsToUser(userId: number, cards: Player[]): Promise<void> {
   const db = await getDb();
   
   for (const card of cards) {
@@ -128,7 +138,7 @@ export async function addCardsToUser(userId: number = 1, cards: Player[]): Promi
   }
 }
 
-export async function recordPackOpening(userId: number = 1, creditsSpent: number, cards: Player[], packType: string = 'Standard'): Promise<void> {
+export async function recordPackOpening(userId: number, creditsSpent: number, cards: Player[], packType: string = 'Standard'): Promise<void> {
   const db = await getDb();
   await db.execute(`
     INSERT INTO pack_openings (user_id, pack_type, credits_spent, cards_obtained) 
@@ -150,7 +160,7 @@ export interface UserCard {
   player: Player;
 }
 
-export async function getUserInventory(userId: number = 1): Promise<UserCard[]> {
+export async function getUserInventory(userId: number): Promise<UserCard[]> {
   const db = await getDb();
   const [rows] = await db.execute(`
     SELECT 
@@ -201,7 +211,7 @@ export async function getUserInventory(userId: number = 1): Promise<UserCard[]> 
   }));
 }
 
-export async function getUserStats(userId: number = 1): Promise<{
+export async function getUserStats(userId: number): Promise<{
   totalCards: number;
   uniqueCards: number;
   totalPacks: number;
@@ -249,4 +259,27 @@ export async function getUserStats(userId: number = 1): Promise<{
     totalPacks: userStatsResult[0]?.total_packs_opened || 0,
     rarityBreakdown
   };
+}
+
+// Get user by email (for NextAuth)
+export async function getUserByEmail(email: string): Promise<User | null> {
+  const db = await getDb();
+  const [rows] = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
+  const result = rows as any[];
+  return result[0] || null;
+}
+
+// Create new user (for NextAuth)
+export async function createUser(name: string, email: string): Promise<User> {
+  const db = await getDb();
+  const [result] = await db.execute(`
+    INSERT INTO users (username, email, credits, last_credit_earn, total_packs_opened)
+    VALUES (?, ?, 100, NOW(), 0)
+  `, [name, email]);
+  
+  const insertResult = result as any;
+  const userId = insertResult.insertId;
+  
+  const [newUser] = await db.execute('SELECT * FROM users WHERE id = ?', [userId]);
+  return (newUser as any[])[0];
 }

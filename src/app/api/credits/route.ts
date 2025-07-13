@@ -1,43 +1,72 @@
-import { getUserCredits, updateUserCredits } from '@/lib/database';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/authOptions'
+import { getUserCredits, updateUserCredits, getUserByEmail } from '@/lib/database'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
-    const userData = await getUserCredits();
+    // Get user ID from email
+    const user = await getUserByEmail(session.user.email)
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    const { credits, last_credit_earn } = await getUserCredits(user.id)
+    
     return NextResponse.json({
-      credits: userData.credits,
-      lastEarned: userData.last_credit_earn
-    });
+      credits,
+      lastEarned: last_credit_earn
+    })
   } catch (error) {
-    console.error('Error fetching credits:', error);
-    return NextResponse.json({ error: 'Failed to fetch credits' }, { status: 500 });
+    console.error('Error fetching credits:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
-    const userData = await getUserCredits();
-    const now = new Date();
-    const lastEarned = new Date(userData.last_credit_earn);
-    const hoursSinceLastEarn = (now.getTime() - lastEarned.getTime()) / (1000 * 60 * 60);
+    // Get user ID from email
+    const user = await getUserByEmail(session.user.email)
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    const { credits, last_credit_earn } = await getUserCredits(user.id)
+    
+    // Check if user can earn credits (1 hour cooldown)
+    const now = new Date()
+    const lastEarned = new Date(last_credit_earn)
+    const hoursSinceLastEarn = (now.getTime() - lastEarned.getTime()) / (1000 * 60 * 60)
     
     if (hoursSinceLastEarn >= 1) {
-      const newCredits = userData.credits + 10;
-      await updateUserCredits(1, newCredits);
+      const newCredits = credits + 10
+      await updateUserCredits(user.id, newCredits)
       
       return NextResponse.json({
         credits: newCredits,
-        earned: 10
-      });
+        lastEarned: now
+      })
     } else {
       return NextResponse.json({
-        credits: userData.credits,
-        earned: 0,
-        timeUntilNext: 3600 - (hoursSinceLastEarn * 3600)
-      });
+        credits,
+        lastEarned: last_credit_earn,
+        error: 'Credits not ready yet'
+      }, { status: 429 })
     }
   } catch (error) {
-    console.error('Error earning credits:', error);
-    return NextResponse.json({ error: 'Failed to earn credits' }, { status: 500 });
+    console.error('Error earning credits:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

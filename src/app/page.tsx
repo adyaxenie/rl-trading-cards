@@ -2,36 +2,44 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Coins, Package, Timer, User } from 'lucide-react';
+import { Coins, Package, Timer, User, Star, Trophy, Zap } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import PackOpening from '@/components/PackOpening';
 import Navbar from '@/components/Navbar';
 import { BackgroundBeams } from '@/components/BackgroundBeams';
 
 export default function Home() {
+  const { data: session, status } = useSession();
   const [credits, setCredits] = useState<number>(100);
   const [lastEarned, setLastEarned] = useState<Date | null>(null);
   const [timeUntilNext, setTimeUntilNext] = useState<number>(0);
 
   useEffect(() => {
-    fetchCredits();
-    const interval = setInterval(updateCredits, 1000);
-    return () => clearInterval(interval);
-  }, []);
+    if (session) {
+      fetchCredits();
+      const interval = setInterval(updateCredits, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [session]);
 
   const fetchCredits = async (): Promise<void> => {
+    if (!session) return;
+    
     try {
       const response = await fetch('/api/credits');
-      const data = await response.json();
-      setCredits(data.credits);
-      setLastEarned(new Date(data.lastEarned));
+      if (response.ok) {
+        const data = await response.json();
+        setCredits(data.credits);
+        setLastEarned(new Date(data.lastEarned));
+      }
     } catch (error) {
       console.error('Error fetching credits:', error);
     }
   };
 
   const updateCredits = async (): Promise<void> => {
-    if (!lastEarned) return;
+    if (!lastEarned || !session) return;
     
     const now = new Date();
     const timeDiff = now.getTime() - lastEarned.getTime();
@@ -41,9 +49,11 @@ export default function Home() {
     if (hoursSinceLastEarn >= 1) {
       try {
         const response = await fetch('/api/credits', { method: 'POST' });
-        const data = await response.json();
-        setCredits(data.credits);
-        setLastEarned(new Date());
+        if (response.ok) {
+          const data = await response.json();
+          setCredits(data.credits);
+          setLastEarned(new Date());
+        }
       } catch (error) {
         console.error('Error earning credits:', error);
       }
@@ -55,11 +65,23 @@ export default function Home() {
     setTimeUntilNext(Math.ceil(timeLeft / 1000));
   };
 
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  const features = [
+    {
+      icon: Star,
+      title: "Pro Player Cards",
+      description: "Collect cards featuring your favorite Rocket League esports professionals with unique stats and abilities."
+    },
+    {
+      icon: Trophy,
+      title: "Multiple Rarities",
+      description: "From Common to Super rare cards, each with different drop rates and special visual effects."
+    },
+    {
+      icon: Zap,
+      title: "Pack Opening",
+      description: "Experience the thrill of opening packs with dramatic animations and exciting reveals."
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 relative overflow-hidden">
@@ -68,86 +90,140 @@ export default function Home() {
       {/* Header */}
       <Navbar credits={credits} timeUntilNext={timeUntilNext} />
 
-      {/* Main Content */}
-      <main className="relative z-10 max-w-6xl mx-auto p-6">
+      {/* Hero Section */}
+      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-20 pb-16">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="text-center mb-16"
+        >
+          <motion.h1 
+            className="text-6xl md:text-7xl font-black mb-6 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent leading-tight"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.8 }}
+          >
+            RL Trading Cards
+          </motion.h1>
+          
+          <motion.p 
+            className="text-xl md:text-2xl text-blue-200 max-w-3xl mx-auto mb-8 leading-relaxed"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.8 }}
+          >
+            Collect your favorite Rocket League pros with unique stats and rarities. 
+            Experience the thrill of opening packs and building your ultimate esports team.
+          </motion.p>
+
+          <motion.div
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.8 }}
+          >
+            {session ? (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center space-x-2 bg-black/30 backdrop-blur-sm px-4 py-2 rounded-lg border border-yellow-400/20">
+                  <Coins className="w-5 h-5 text-yellow-400" />
+                  <span className="font-semibold text-yellow-400">{credits} Credits</span>
+                </div>
+                <Link 
+                  href="/inventory" 
+                  className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 flex items-center space-x-2"
+                >
+                  <Package className="w-5 h-5" />
+                  <span>View Collection</span>
+                </Link>
+              </div>
+            ) : (
+              <div className="text-center">
+                <div className="text-blue-300 mb-2">Start your collection today!</div>
+                <div className="text-sm text-gray-400">Sign in to begin opening packs</div>
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+
+        {/* Features Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="text-center mb-8"
+          transition={{ delay: 0.8, duration: 0.8 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16"
         >
-          <h2 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent">
-            Open Packs & Collect Pro Players
+          {features.map((feature, index) => {
+            const Icon = feature.icon;
+            return (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8 + index * 0.1, duration: 0.6 }}
+                className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:border-blue-400/30 transition-all duration-300"
+              >
+                <Icon className="w-12 h-12 text-blue-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold mb-3 text-white">{feature.title}</h3>
+                <p className="text-gray-300 leading-relaxed">{feature.description}</p>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      </section>
+
+      {/* Pack Opening Section */}
+      <section className="relative z-10 max-w-6xl mx-auto px-6 pb-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.0, duration: 0.8 }}
+          className="text-center mb-12"
+        >
+          <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent">
+            Choose Your Pack
           </h2>
           <p className="text-blue-200 text-lg max-w-2xl mx-auto">
-            Collect your favorite Rocket League pros with unique stats and rarities. 
-            Experience the thrill of opening packs and building your ultimate team!
+            Each pack contains 5 cards with different rarity distributions. 
+            Will you get the legendary Super rare you're looking for?
           </p>
         </motion.div>
 
-        {/* Pack Opening Section */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.4 }}
-          className="flex justify-center mb-12"
+          transition={{ delay: 1.2, duration: 0.8 }}
+          className="flex justify-center mb-16"
         >
-          <PackOpening onPackOpened={setCredits} />
+          <PackOpening onPackOpened={setCredits} userCredits={credits} />
         </motion.div>
+      </section>
 
-        {/* Stats Cards */}
+      {/* Pack Stats Section */}
+
+
+      {/* CTA Section */}
+      <section className="relative z-10 max-w-4xl mx-auto px-6 pb-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto"
+          transition={{ delay: 1.6, duration: 0.8 }}
+          className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 backdrop-blur-sm border border-blue-400/30 rounded-2xl p-8 text-center"
         >
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:border-yellow-400/30 transition-all duration-300">
-            <Package className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
-            <h3 className="text-xl font-semibold mb-2 text-white">Standard Pack</h3>
-            <p className="text-yellow-200 mb-4">5 cards with standard odds</p>
-            <div className="text-2xl font-bold text-yellow-400 mb-3">50 Credits</div>
-            <div className="text-sm text-gray-300 space-y-1">
-              <div className="flex justify-between">
-                <span>Super:</span> <span className="text-yellow-300">2%</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Epic:</span> <span className="text-purple-400">10%</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Rare:</span> <span className="text-blue-400">29%</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Common:</span> <span className="text-gray-400">59%</span>
-              </div>
+          <h3 className="text-3xl font-bold mb-4 text-white">
+            Ready to Start Your Collection?
+          </h3>
+          <p className="text-blue-200 mb-6 text-lg">
+            Join to start building your dream Rocket League roster today.
+          </p>
+          {!session && (
+            <div className="text-center">
+              <div className="text-blue-300 mb-2">✨ Get 100 free credits when you sign up!</div>
+              <div className="text-sm text-gray-400">Earn 10 credits every hour automatically</div>
             </div>
-          </div>
-          
-          <div className="bg-black/20 backdrop-blur-sm border border-purple-400/20 rounded-xl p-6 text-center hover:border-purple-400/50 transition-all duration-300 relative overflow-hidden">
-            <div className="absolute top-2 right-2 bg-gradient-to-r from-pink-500 to-yellow-400 text-black px-2 py-1 rounded-full text-xs font-bold animate-pulse">
-              HOT!
-            </div>
-            <div className="text-4xl mb-3">✨</div>
-            <h3 className="text-xl font-semibold mb-2 text-white">Premium Pack</h3>
-            <p className="text-purple-200 mb-4">5 cards with BOOSTED Super odds!</p>
-            <div className="text-2xl font-bold text-purple-400 mb-3">200 Credits</div>
-            <div className="text-sm text-gray-300 space-y-1">
-              <div className="flex justify-between">
-                <span>Super:</span> <span className="text-yellow-300 font-bold">50%</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Epic:</span> <span className="text-purple-400">30%</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Rare:</span> <span className="text-blue-400">16%</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Common:</span> <span className="text-gray-400">4%</span>
-              </div>
-            </div>
-          </div>
+          )}
         </motion.div>
-      </main>
+      </section>
     </div>
   );
 }

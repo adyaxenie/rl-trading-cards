@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Coins, Timer, User, Menu, X, Package, Trophy, Settings } from 'lucide-react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -12,6 +13,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
+  const { data: session, status } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
@@ -19,6 +21,14 @@ export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleSignIn = () => {
+    signIn('google');
+  };
+
+  const handleSignOut = () => {
+    signOut();
   };
 
   const navItems = [
@@ -94,7 +104,7 @@ export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
             </div>
           </div>
 
-          {/* Right side - Credits and Timer */}
+          {/* Right side - Credits, Timer, and User */}
           <div className="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
             <div className="flex items-center space-x-4">
               {/* Credits */}
@@ -114,29 +124,51 @@ export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
               >
                 <Timer className="w-4 h-4 text-green-400" />
                 <span className="text-sm text-green-400">
-                  {formatTime(timeUntilNext)}
+                  {timeUntilNext > 0 ? formatTime(timeUntilNext) : 'Ready!'}
                 </span>
               </motion.div>
 
-              {/* Profile Avatar */}
-              <motion.div
-                className="relative"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <button
-                  type="button"
-                  className="relative flex rounded-full bg-gradient-to-r from-blue-500 to-purple-600 p-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-gray-800 transition-all duration-200"
-                  id="user-menu-button"
-                  aria-expanded="false"
-                  aria-haspopup="true"
+              {/* User Authentication */}
+              {status === 'loading' ? (
+                <div className="w-8 h-8 bg-white/20 rounded-full animate-pulse" />
+              ) : session ? (
+                <div className="relative">
+                  <motion.div
+                    className="relative"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      className="relative flex rounded-full bg-white/10 p-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-gray-800 transition-all duration-200 group"
+                      title={`${session.user.name} - Click to sign out`}
+                    >
+                      <span className="sr-only">Sign out</span>
+                      <img
+                        src={session.user.image || '/default-avatar.png'}
+                        alt="Profile"
+                        className="h-8 w-8 rounded-full"
+                      />
+                      
+                      {/* Simple tooltip */}
+                      <div className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-black/90 backdrop-blur-sm text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                        {session.user.name} - Click to sign out
+                      </div>
+                    </button>
+                  </motion.div>
+                </div>
+              ) : (
+                <motion.button
+                  onClick={handleSignIn}
+                  className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all duration-200"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
-                  <span className="sr-only">Open user menu</span>
-                  <div className="h-8 w-8 rounded-full bg-gray-800 flex items-center justify-center">
-                    <span className="text-white font-semibold text-xs">U1</span>
-                  </div>
-                </button>
-              </motion.div>
+                  <User className="w-4 h-4" />
+                  <span className="hidden sm:inline">Sign In</span>
+                </motion.button>
+              )}
             </div>
           </div>
         </div>
@@ -182,14 +214,49 @@ export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
                     <span className="text-sm text-green-400">Next credits</span>
                   </div>
                   <span className="text-sm font-semibold text-green-400">
-                    {formatTime(timeUntilNext)}
+                    {timeUntilNext > 0 ? formatTime(timeUntilNext) : 'Ready!'}
                   </span>
                 </div>
               </div>
+
+              {/* Mobile Authentication */}
+              {session ? (
+                <div className="px-3 py-2 mt-4">
+                  <div className="bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-white/20">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <img
+                        src={session.user.image || '/default-avatar.png'}
+                        alt="Profile"
+                        className="w-8 h-8 rounded-full"
+                      />
+                      <div>
+                        <p className="text-sm text-white font-medium">{session.user.name}</p>
+                        <p className="text-xs text-gray-300 truncate">{session.user.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full text-left text-sm text-gray-300 hover:text-white transition-colors"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="px-3 py-2 mt-4">
+                  <button
+                    onClick={handleSignIn}
+                    className="w-full flex items-center justify-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all duration-200"
+                  >
+                    <User className="w-4 h-4" />
+                    <span>Sign In with Google</span>
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </nav>
   );
-} 
+}

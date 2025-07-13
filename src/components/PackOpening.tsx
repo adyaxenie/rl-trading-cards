@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSession, signIn } from 'next-auth/react';
 import { ExpandableCard } from './ExpandableCard';
 import { Player } from '@/lib/database';
+import { User } from 'lucide-react';
 
 interface PackOpeningProps {
   onPackOpened: (remainingCredits: number) => void;
+  userCredits: number;
 }
 
-export default function PackOpening({ onPackOpened }: PackOpeningProps) {
+export default function PackOpening({ onPackOpened, userCredits }: PackOpeningProps) {
+  const { data: session, status } = useSession();
   const [isOpening, setIsOpening] = useState<boolean>(false);
   const [cards, setCards] = useState<Player[]>([]);
   const [showCards, setShowCards] = useState<boolean>(false);
@@ -53,6 +57,17 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
   };
 
   const openPack = async (packType: string): Promise<void> => {
+    if (!session) {
+      signIn('google');
+      return;
+    }
+
+    const pack = packTypes[packType as keyof typeof packTypes];
+    if (userCredits < pack.cost) {
+      alert(`Not enough credits! You need ${pack.cost} credits but only have ${userCredits}.`);
+      return;
+    }
+
     setIsOpening(true);
     setSelectedPack(packType);
     
@@ -81,6 +96,7 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
       }
     } catch (error) {
       console.error('Error opening pack:', error);
+      alert('Error opening pack. Please try again.');
       setIsOpening(false);
     }
   };
@@ -95,13 +111,17 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
     const isSilver = pack.foilType === 'silver';
     const isGold = pack.foilType === 'gold';
     const isBlack = pack.foilType === 'black';
+    const canAfford = session && userCredits >= pack.cost;
+    const isDisabled = !session || !canAfford;
     
     return (
       <motion.div
-        className="relative w-64 h-96 cursor-pointer group perspective-1000"
-        whileHover={{ scale: 1.05, y: -10 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={onClick}
+        className={`relative w-64 h-96 cursor-pointer group perspective-1000 ${
+          isDisabled ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+        whileHover={!isDisabled ? { scale: 1.05, y: -10 } : {}}
+        whileTap={!isDisabled ? { scale: 0.95 } : {}}
+        onClick={!isDisabled ? onClick : undefined}
       >
         {/* RL.TCG text repeating along left edge */}
         <div className="absolute left-0 top-8 bottom-8 flex flex-col justify-between items-center z-20">
@@ -148,7 +168,7 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
           
           {/* Shimmer effect */}
           <div className={`
-            absolute inset-0 opacity-40 transform -skew-x-12 group-hover:animate-shimmer
+            absolute inset-0 opacity-40 transform -skew-x-12 ${!isDisabled ? 'group-hover:animate-shimmer' : ''}
             bg-gradient-to-r from-transparent to-transparent
             ${isSilver 
               ? 'via-slate-100/80' 
@@ -169,6 +189,26 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
               : 'border-gray-600'
             }
           `} />
+
+          {/* Not enough credits overlay */}
+          {session && !canAfford && (
+            <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl">
+              <div className="text-center text-white">
+                <div className="text-sm font-bold mb-1">Not Enough Credits</div>
+                <div className="text-xs">Need {pack.cost}, have {userCredits}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Sign in required overlay */}
+          {!session && (
+            <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl">
+              <div className="text-center text-white">
+                <User className="w-8 h-8 mx-auto mb-2" />
+                <div className="text-sm font-bold">Sign In Required</div>
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Large RL.TCG bottom right */}
@@ -186,13 +226,24 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
         
         {/* Floating info panel on hover */}
         <motion.div
-          className="absolute -bottom-16 left-0 right-0 bg-black/90 backdrop-blur-sm rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-all duration-300"
+          className={`absolute -bottom-16 left-0 right-0 bg-black/90 backdrop-blur-sm rounded-lg p-3 transition-all duration-300 ${
+            !isDisabled ? 'opacity-0 group-hover:opacity-100' : 'opacity-0'
+          }`}
           initial={false}
         >
           <div className="text-center text-white">
             <div className="font-bold text-sm mb-1">{pack.name}</div>
             <div className="text-xs text-gray-300 mb-2">{pack.description}</div>
-            <div className="text-lg font-bold text-yellow-400">{pack.cost} Credits</div>
+            <div className={`text-lg font-bold mb-1 ${
+              canAfford ? 'text-yellow-400' : 'text-red-400'
+            }`}>
+              {pack.cost} Credits
+            </div>
+            {!canAfford && session && (
+              <div className="text-xs text-red-400 mb-2">
+                Need {pack.cost - userCredits} more credits
+              </div>
+            )}
             <div className="mt-2 text-xs">
               <div className="font-semibold mb-1">Drop Rates:</div>
               <div className="grid grid-cols-2 gap-1">
@@ -214,6 +265,42 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
       </motion.div>
     );
   };
+
+  // Show sign in prompt if not authenticated
+  if (status === 'loading') {
+    return (
+      <div className="text-center py-12">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="text-center py-12">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-8 max-w-md mx-auto"
+        >
+          <User className="w-16 h-16 text-blue-400 mx-auto mb-4" />
+          <h3 className="text-2xl font-bold text-white mb-4">Sign In to Play</h3>
+          <p className="text-blue-200 mb-6">
+            Sign in with Google to start opening packs and collecting Rocket League pro cards!
+          </p>
+          <motion.button
+            onClick={() => signIn('google')}
+            className="flex items-center justify-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-lg transition-all duration-200 w-full"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <User className="w-5 h-5" />
+            <span>Sign In with Google</span>
+          </motion.button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="text-center">
@@ -241,7 +328,7 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
           >
             {!isOpening ? (
               <>
-                <h3 className="text-2xl font-bold text-white mb-8">Choose Your Pack</h3>
+                {/* <h3 className="text-2xl font-bold text-white mb-8">Choose Your Pack</h3> */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
                   {Object.entries(packTypes).map(([type, pack]) => (
                     <FoilPack 
