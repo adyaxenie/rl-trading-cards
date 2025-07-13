@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
 
 export const BackgroundBeams = React.memo(
   ({ className }: { className?: string }) => {
@@ -31,10 +30,7 @@ export const BackgroundBeams = React.memo(
 
     return (
       <div
-        className={cn(
-          "absolute inset-0 flex h-full w-full items-center justify-center overflow-hidden",
-          className,
-        )}
+        className={`absolute inset-0 flex h-full w-full items-center justify-center overflow-hidden ${className || ""}`}
       >
         <svg
           className="pointer-events-none absolute z-0 h-full w-full"
@@ -49,7 +45,7 @@ export const BackgroundBeams = React.memo(
               key={`path-` + index}
               d={path}
               stroke={`url(#linearGradient-${index})`}
-              strokeOpacity="0.4"
+              strokeOpacity="0.3"
               strokeWidth="0.5"
               fill="none"
             />
@@ -78,10 +74,10 @@ export const BackgroundBeams = React.memo(
                   delay: Math.random() * 10,
                 }}
               >
-                <stop stopColor="#3b82f6" stopOpacity="0" />
-                <stop stopColor="#3b82f6" />
-                <stop offset="32.5%" stopColor="#8b5cf6" />
-                <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+                <stop stopColor="#6b7280" stopOpacity="0" />
+                <stop stopColor="#6b7280" />
+                <stop offset="32.5%" stopColor="#9ca3af" />
+                <stop offset="100%" stopColor="#d1d5db" stopOpacity="0" />
               </motion.linearGradient>
             ))}
           </defs>
