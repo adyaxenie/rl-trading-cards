@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useOutsideClick } from "@/hooks/useOutsideClick";
 import { Player } from "@/lib/database";
-import { X } from "lucide-react";
+import { X, User } from "lucide-react";
 
 interface ExpandableCardProps {
   player: Player;
@@ -12,10 +12,10 @@ interface ExpandableCardProps {
 }
 
 const rarityColors = {
-  'Super': 'from-black via-black-100 to-black',
-  'Epic': 'from-purple-600 via-purple-400 to-purple-600',
-  'Rare': 'from-blue-600 via-blue-400 to-blue-600',
-  'Common': 'from-gray-600 via-gray-400 to-gray-600',
+  'Super': 'from-black via-gray-900 to-black',
+  'Epic': 'from-yellow-200 via-amber-300 to-yellow-500',
+  'Rare': 'from-slate-200 via-gray-300 to-slate-400',
+  'Common': 'from-gray-500 via-gray-400 to-gray-500',
 };
 
 const rarityGlow = {
@@ -27,16 +27,16 @@ const rarityGlow = {
 
 const rarityBorder = {
   'Super': 'border-white',
-  'Epic': 'border-purple-500',
-  'Rare': 'border-blue-500',
-  'Common': 'border-gray-500',
+  'Epic': 'border-yellow-400',
+  'Rare': 'border-slate-300',
+  'Common': 'border-gray-400',
 };
 
 const rarityBadgeStyle = {
   'Super': 'bg-white text-black font-bold',
-  'Epic': 'bg-purple-600 text-white font-bold',
-  'Rare': 'bg-blue-600 text-white font-bold',
-  'Common': 'bg-gray-600 text-white font-medium',
+  'Epic': 'bg-yellow-600 text-black font-bold',
+  'Rare': 'bg-slate-600 text-white font-bold',
+  'Common': 'bg-gray-500 text-white font-medium',
 };
 
 export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCardProps) {
@@ -73,8 +73,8 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
         <div
           className={`h-2 rounded-full transition-all duration-500 ${
             value >= 90 ? 'bg-gradient-to-r from-yellow-400 to-yellow-200' :
-            value >= 80 ? 'bg-gradient-to-r from-purple-500 to-purple-300' :
-            value >= 70 ? 'bg-gradient-to-r from-blue-500 to-blue-300' :
+            value >= 80 ? 'bg-gradient-to-r from-yellow-500 to-yellow-300' :
+            value >= 70 ? 'bg-gradient-to-r from-slate-500 to-slate-300' :
             'bg-gradient-to-r from-gray-500 to-gray-300'
           }`}
           style={{ width: `${(value / max) * 100}%` }}
@@ -85,6 +85,16 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
 
   return (
     <>
+      <style jsx>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%) skewX(-12deg); }
+          100% { transform: translateX(200%) skewX(-12deg); }
+        }
+        .animate-shimmer {
+          animation: shimmer 3s infinite;
+        }
+      `}</style>
+      
       <AnimatePresence>
         {active && (
           <motion.div
@@ -115,7 +125,7 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
                     layoutId={`team-${player.id}-${id}`}
                     className="text-lg text-gray-300"
                   >
-                    {player.team} • {player.region}
+                    {player.team || 'N/A'} • {player.region || 'N/A'}
                   </motion.p>
                 </div>
                 <motion.button
@@ -137,25 +147,54 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
                                   bg-gradient-to-br ${rarityColors[player.rarity]} 
                                   bg-metal-800 overflow-hidden ${rarityGlow[player.rarity]}`}
                     >
+                      {/* Foil effect for Super cards */}
+                      {player.rarity === 'Super' && (
+                        <>
+                          {/* Holographic overlay */}
+                          <div className="absolute inset-0 opacity-30 bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-pink-500/20 animate-pulse" />
+                          
+                          {/* Shimmer effect */}
+                          <div className="absolute inset-0 opacity-40 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 animate-shimmer" />
+                          
+                          {/* Reflective highlights */}
+                          <div className="absolute top-4 left-4 right-4 h-16 rounded-lg opacity-20 bg-gradient-to-b from-white/60 to-transparent" />
+                        </>
+                      )}
+                      
                       {/* Rarity Badge */}
-                      <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-sm ${rarityBadgeStyle[player.rarity]}`}>
+                      <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-sm z-10 ${rarityBadgeStyle[player.rarity]}`}>
                         {player.rarity}
                       </div>
 
                       {/* Quantity Badge */}
                       {quantity > 1 && (
-                        <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm font-bold border border-white/20">
+                        <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm font-bold border border-white/20 z-10">
                           x{quantity}
                         </div>
                       )}
 
                       {/* Player Image Placeholder */}
-                      <div className="w-full h-40 bg-metal-700 flex items-center justify-center mt-6">
-                        <div className="text-6xl font-bold text-white">{player.name.charAt(0)}</div>
+                      <div className="w-full h-48 flex items-center justify-center relative z-0 overflow-hidden">
+                        <img 
+                          src={`/players/${player.name.toLowerCase()}.jpg`}
+                          alt={player.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            // Fallback to profile icon if image doesn't exist
+                            e.currentTarget.style.display = 'none';
+                            if (e.currentTarget.nextElementSibling) {
+                              (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
+                            }
+                          }}
+                        />
+                        
+                        <div className="text-6xl font-bold text-white w-full h-full items-center justify-center hidden">
+                          <User size={64} className="text-white" />
+                        </div>
                       </div>
 
                       {/* Overall Rating */}
-                      <div className="absolute bottom-4 left-4 right-4 text-center">
+                      <div className="absolute bottom-4 left-4 right-4 text-center z-10">
                         <div className="text-4xl font-bold text-white mb-1">{player.overall_rating}</div>
                         <div className="text-sm text-gray-200">OVERALL</div>
                       </div>
@@ -177,8 +216,8 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
                           <span className="text-gray-300">Rarity:</span>
                           <span className={`font-bold ${
                             player.rarity === 'Super' ? 'text-yellow-300' :
-                            player.rarity === 'Epic' ? 'text-purple-400' :
-                            player.rarity === 'Rare' ? 'text-blue-400' :
+                            player.rarity === 'Epic' ? 'text-yellow-400' :
+                            player.rarity === 'Rare' ? 'text-slate-400' :
                             'text-gray-400'
                           }`}>
                             {player.rarity}
@@ -248,14 +287,28 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
                     bg-gradient-to-br ${rarityColors[player.rarity]} 
                     bg-metal-800 overflow-hidden hover:scale-105 transition-all duration-300 ${rarityGlow[player.rarity]}`}
       >
+        {/* Foil effect for Super cards */}
+        {player.rarity === 'Super' && (
+          <>
+            {/* Holographic overlay */}
+            <div className="absolute inset-0 opacity-30 bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-pink-500/20 animate-pulse" />
+            
+            {/* Shimmer effect */}
+            <div className="absolute inset-0 opacity-40 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 animate-shimmer" />
+            
+            {/* Reflective highlights */}
+            <div className="absolute top-4 left-4 right-4 h-16 rounded-lg opacity-20 bg-gradient-to-b from-white/60 to-transparent" />
+          </>
+        )}
+        
         {/* Rarity Badge */}
-        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs ${rarityBadgeStyle[player.rarity]}`}>
+        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs z-10 ${rarityBadgeStyle[player.rarity]}`}>
           {player.rarity}
         </div>
 
         {/* Quantity Badge */}
         {quantity > 1 && (
-          <div className="absolute top-2 left-2 bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded-full text-xs font-bold border border-white/20">
+          <div className="absolute top-2 left-2 bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded-full text-xs font-bold border border-white/20 z-10">
             x{quantity}
           </div>
         )}
@@ -263,13 +316,28 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
         {/* Player Image Placeholder */}
         <motion.div 
           layoutId={`card-visual-${player.id}-${id}`}
-          className="w-full h-32 bg-metal-700 flex items-center justify-center mt-4"
+          className="w-full h-36 flex items-center justify-center relative z-0 overflow-hidden"
         >
-          <div className="text-4xl font-bold text-white">{player.name.charAt(0)}</div>
+          <img 
+            src={`/players/${player.name.toLowerCase()}.jpg`}
+            alt={player.name}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              // Fallback to profile icon if image doesn't exist
+              e.currentTarget.style.display = 'none';
+              if (e.currentTarget.nextElementSibling) {
+                (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
+              }
+            }}
+          />
+          
+          <div className="text-4xl font-bold text-white w-full h-full items-center justify-center hidden">
+            <User size={48} className="text-white" />
+          </div>
         </motion.div>
 
         {/* Player Info */}
-        <div className="p-4 text-white">
+        <div className="p-4 text-white relative z-10">
           <motion.h3 
             layoutId={`title-${player.id}-${id}`}
             className="font-bold text-lg mb-1"
@@ -278,9 +346,9 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
           </motion.h3>
           <motion.p 
             layoutId={`team-${player.id}-${id}`}
-            className="text-sm text-gray-300 mb-2"
+            className="text-sm text-gray-400 mb-2"
           >
-            {player.team} • {player.region}
+            {player.team || 'N/A'} • {player.region || 'N/A'}
           </motion.p>
           <div className="text-center mb-2">
             <span className="text-2xl font-bold">{player.overall_rating}</span>

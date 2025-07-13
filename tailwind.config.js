@@ -27,16 +27,16 @@ module.exports = {
         },
         'glow': {
           'super': '#ffffff',
-          'epic': '#9333ea',
-          'rare': '#2563eb',
+          'epic': '#fbbf24', // Gold/yellow for Epic
+          'rare': '#94a3b8', // Silver/slate for Rare
           'common': '#6b7280',
         }
       },
       boxShadow: {
-        'glow-super': '0 0 20px rgba(255, 255, 255, 0.5)',
-        'glow-epic': '0 0 20px rgba(147, 51, 234, 0.5)',
-        'glow-rare': '0 0 20px rgba(37, 99, 235, 0.5)',
-        'glow-common': '0 0 10px rgba(107, 114, 128, 0.3)',
+        'glow-super': '0 0 20px rgba(255, 255, 255, 0.5)', // White glow for black foil
+        'glow-epic': '0 0 20px rgba(251, 191, 36, 0.5)',   // Gold glow for Epic
+        'glow-rare': '0 0 20px rgba(148, 163, 184, 0.5)',  // Silver glow for Rare
+        'glow-common': '', // No glow for common cards
       }
     },
   },

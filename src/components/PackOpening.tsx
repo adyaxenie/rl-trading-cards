@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Card from './Card';
+import { ExpandableCard } from './ExpandableCard';
 import { Player } from '@/lib/database';
 
 interface PackOpeningProps {
@@ -18,9 +18,7 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
       name: 'Standard Pack',
       cost: 50,
       description: '5 cards with standard odds',
-      gradient: 'from-yellow-400 to-orange-600',
-      border: 'border-yellow-300',
-      emoji: '📦',
+      foilType: 'silver',
       odds: {
         'Super': '2%',
         'Epic': '10%', 
@@ -32,14 +30,24 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
       name: 'Premium Pack',
       cost: 200,
       description: '5 cards with BOOSTED Super odds!',
-      gradient: 'from-purple-500 via-pink-500 to-yellow-500',
-      border: 'border-purple-300',
-      emoji: '✨',
+      foilType: 'gold',
       odds: {
         'Super': '50%',
         'Epic': '30%',
         'Rare': '16%', 
         'Common': '4%'
+      }
+    },
+    ultimate: {
+      name: 'Ultimate Pack',
+      cost: 500,
+      description: 'Guaranteed Super in every pack!',
+      foilType: 'black',
+      odds: {
+        'Super': '100%',
+        'Epic': '0%',
+        'Rare': '0%', 
+        'Common': '0%'
       }
     }
   };
@@ -83,8 +91,145 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
     setSelectedPack('standard');
   };
 
+  const FoilPack = ({ type, pack, onClick }: { type: string, pack: any, onClick: () => void }) => {
+    const isSilver = pack.foilType === 'silver';
+    const isGold = pack.foilType === 'gold';
+    const isBlack = pack.foilType === 'black';
+    
+    return (
+      <motion.div
+        className="relative w-64 h-96 cursor-pointer group perspective-1000"
+        whileHover={{ scale: 1.05, y: -10 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={onClick}
+      >
+        {/* RL.TCG text repeating along left edge */}
+        <div className="absolute left-0 top-8 bottom-8 flex flex-col justify-between items-center z-20">
+          {[...Array(4)].map((_, i) => (
+            <div 
+              key={i}
+              className={`text-base font-bold tracking-widest opacity-50 ${
+                isSilver ? 'text-slate-700' :
+                isGold ? 'text-amber-800' :
+                'text-gray-400'
+              }`}
+              style={{ 
+                transform: 'rotate(-90deg)',
+                transformOrigin: 'center',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <em>RL.TCG</em>
+            </div>
+          ))}
+        </div>
+        
+        {/* Main pack body with foil effect */}
+        <div className={`
+          w-full h-full rounded-xl relative overflow-hidden shadow-2xl
+          ${isSilver 
+            ? 'bg-gradient-to-br from-slate-200 via-gray-300 to-slate-400 border-slate-300' 
+            : isGold 
+            ? 'bg-gradient-to-br from-yellow-200 via-amber-300 to-yellow-500 border-yellow-400'
+            : 'bg-gradient-to-br from-black via-gray-900 to-black border-white'
+          }
+        `}>
+          
+          {/* Holographic/foil overlay effects */}
+          <div className={`
+            absolute inset-0 opacity-60 animate-pulse
+            ${isSilver 
+              ? 'bg-gradient-to-tr from-blue-200/30 via-purple-200/30 to-pink-200/30' 
+              : isGold
+              ? 'bg-gradient-to-tr from-orange-200/40 via-red-200/40 to-pink-200/40'
+              : 'bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-pink-500/20'
+            }
+          `} />
+          
+          {/* Shimmer effect */}
+          <div className={`
+            absolute inset-0 opacity-40 transform -skew-x-12 group-hover:animate-shimmer
+            bg-gradient-to-r from-transparent to-transparent
+            ${isSilver 
+              ? 'via-slate-100/80' 
+              : isGold
+              ? 'via-yellow-100/80'
+              : 'via-white/60'
+            }
+          `} />
+          
+
+          {/* Embossed edges */}
+          <div className={`
+            absolute inset-0 rounded-xl shadow-inner
+            ${isSilver 
+              ? 'border-slate-400' 
+              : isGold
+              ? 'border-yellow-600'
+              : 'border-gray-600'
+            }
+          `} />
+        </div>
+        
+        {/* Large RL.TCG bottom right */}
+        <div className="absolute bottom-6 right-6 z-20">
+          <div 
+            className={`text-4xl font-bold tracking-wider opacity-50 ${
+              isSilver ? 'text-slate-700' :
+              isGold ? 'text-amber-800' :
+              'text-gray-400'
+            }`}
+          >
+            <em>RL.TCG</em>
+          </div>
+        </div>
+        
+        {/* Floating info panel on hover */}
+        <motion.div
+          className="absolute -bottom-16 left-0 right-0 bg-black/90 backdrop-blur-sm rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-all duration-300"
+          initial={false}
+        >
+          <div className="text-center text-white">
+            <div className="font-bold text-sm mb-1">{pack.name}</div>
+            <div className="text-xs text-gray-300 mb-2">{pack.description}</div>
+            <div className="text-lg font-bold text-yellow-400">{pack.cost} Credits</div>
+            <div className="mt-2 text-xs">
+              <div className="font-semibold mb-1">Drop Rates:</div>
+              <div className="grid grid-cols-2 gap-1">
+                {Object.entries(pack.odds).map(([rarity, rate]) => (
+                  <div key={rarity} className="flex justify-between">
+                    <span className={
+                      rarity === 'Super' ? 'text-yellow-300' :
+                      rarity === 'Epic' ? 'text-yellow-300' :
+                      rarity === 'Rare' ? 'text-slate-300' :
+                      'text-gray-400'
+                    }>{rarity}:</span>
+                    <span className="font-bold">{String(rate)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    );
+  };
+
   return (
     <div className="text-center">
+      <style jsx>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%) skewX(-12deg); }
+          100% { transform: translateX(200%) skewX(-12deg); }
+        }
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+        .perspective-1000 {
+          perspective: 1000px;
+        }
+      `}</style>
+      
       <AnimatePresence mode="wait">
         {!showCards ? (
           <motion.div
@@ -97,69 +242,48 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
             {!isOpening ? (
               <>
                 <h3 className="text-2xl font-bold text-white mb-8">Choose Your Pack</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
                   {Object.entries(packTypes).map(([type, pack]) => (
-                    <motion.div
+                    <FoilPack 
                       key={type}
-                      className={`w-64 h-96 bg-gradient-to-br ${pack.gradient} 
-                                 rounded-xl shadow-2xl cursor-pointer mb-6 flex flex-col items-center justify-between
-                                 border-4 ${pack.border} relative overflow-hidden group`}
-                      whileHover={{ scale: 1.05, y: -10 }}
-                      whileTap={{ scale: 0.95 }}
+                      type={type}
+                      pack={pack}
                       onClick={() => openPack(type)}
-                    >
-                      {/* Pack Type Badge */}
-                      {type === 'premium' && (
-                        <div className="absolute top-2 right-2 bg-gradient-to-r from-pink-500 to-yellow-400 text-black px-2 py-1 rounded-full text-xs font-bold animate-pulse">
-                          HOT!
-                        </div>
-                      )}
-                      
-                      {/* Pack Visual */}
-                      <div className="flex-1 flex flex-col items-center justify-center text-white">
-                        <div className="text-6xl mb-4 group-hover:animate-bounce">{pack.emoji}</div>
-                        <div className="text-xl font-bold mb-2">{pack.name}</div>
-                        <div className="text-sm mb-4 px-4 text-center">{pack.description}</div>
-                        <div className="text-3xl font-bold text-black bg-white/90 px-4 py-2 rounded-lg">
-                          {pack.cost} Credits
-                        </div>
-                      </div>
-
-                      {/* Odds Display */}
-                      <div className="w-full bg-black/50 backdrop-blur-sm p-4 text-white">
-                        <div className="text-sm font-semibold mb-2">Drop Rates:</div>
-                        <div className="grid grid-cols-2 gap-1 text-xs">
-                          {Object.entries(pack.odds).map(([rarity, rate]) => (
-                            <div key={rarity} className="flex justify-between">
-                              <span className={
-                                rarity === 'Super' ? 'text-yellow-300' :
-                                rarity === 'Epic' ? 'text-purple-300' :
-                                rarity === 'Rare' ? 'text-blue-300' :
-                                'text-gray-300'
-                              }>{rarity}:</span>
-                              <span className="font-bold">{rate}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </motion.div>
+                    />
                   ))}
                 </div>
               </>
             ) : (
-              <motion.div
-                className={`w-64 h-96 bg-gradient-to-br ${packTypes[selectedPack as keyof typeof packTypes].gradient} 
-                           rounded-xl shadow-2xl mb-6 flex items-center justify-center
-                           border-4 ${packTypes[selectedPack as keyof typeof packTypes].border}`}
-                animate={{ rotateY: 360 }}
-                transition={{ duration: 1.5 }}
-              >
+              <motion.div className="flex flex-col items-center">
+                <div className="relative w-64 h-96 mb-6">
+                  <motion.div
+                    className={`
+                      w-full h-full rounded-xl relative overflow-hidden shadow-2xl border-2
+                      ${packTypes[selectedPack as keyof typeof packTypes].foilType === 'silver'
+                        ? 'bg-gradient-to-br from-slate-200 via-gray-300 to-slate-400 border-slate-300' 
+                        : packTypes[selectedPack as keyof typeof packTypes].foilType === 'gold'
+                        ? 'bg-gradient-to-br from-yellow-200 via-amber-300 to-yellow-500 border-yellow-400'
+                        : 'bg-gradient-to-br from-black via-gray-900 to-black border-white'
+                      }
+                    `}
+                    animate={{ 
+                      rotateY: [0, 180, 360],
+                      scale: [1, 1.1, 1]
+                    }}
+                    transition={{ duration: 1.5, ease: "easeInOut" }}
+                  >
+                    {/* Intense opening effect */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent animate-pulse" />
+                    <div className={`absolute inset-0 animate-pulse ${
+                      packTypes[selectedPack as keyof typeof packTypes].foilType === 'black'
+                        ? 'bg-gradient-to-tr from-blue-500/60 via-purple-500/60 to-pink-500/60'
+                        : 'bg-gradient-to-tr from-blue-200/60 via-purple-200/60 to-pink-200/60'
+                    }`} />
+                  </motion.div>
+                </div>
                 <div className="text-white text-center">
-                  <div className="text-6xl mb-4 animate-pulse">
-                    {packTypes[selectedPack as keyof typeof packTypes].emoji}
-                  </div>
-                  <div className="text-xl font-bold">Opening...</div>
-                  <div className="text-sm">
+                  <div className="text-xl font-bold animate-pulse">Opening Pack...</div>
+                  <div className="text-sm text-gray-300">
                     {packTypes[selectedPack as keyof typeof packTypes].name}
                   </div>
                 </div>
@@ -190,8 +314,8 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
                 ).map(([rarity, count]) => (
                   <span key={rarity} className={`font-semibold ${
                     rarity === 'Super' ? 'text-yellow-400' :
-                    rarity === 'Epic' ? 'text-purple-400' :
-                    rarity === 'Rare' ? 'text-blue-400' :
+                    rarity === 'Epic' ? 'text-yellow-400' :
+                    rarity === 'Rare' ? 'text-slate-400' :
                     'text-gray-400'
                   }`}>
                     {count}x {rarity}
@@ -207,8 +331,13 @@ export default function PackOpening({ onPackOpened }: PackOpeningProps) {
                   initial={{ opacity: 0, y: 50, rotateY: 180 }}
                   animate={{ opacity: 1, y: 0, rotateY: 0 }}
                   transition={{ delay: index * 0.2, duration: 0.6 }}
+                  className="w-48"
                 >
-                  <Card player={card} />
+                  <ExpandableCard 
+                    player={card} 
+                    quantity={1}
+                    firstObtained={new Date()}
+                  />
                 </motion.div>
               ))}
             </div>
