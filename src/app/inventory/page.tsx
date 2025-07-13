@@ -230,7 +230,7 @@ export default function Inventory() {
         transition={{ delay: 0.6 }}
         className="relative z-10 max-w-7xl mx-auto px-6 pb-12"
       >
-        {inventory.length === 0 ? (
+        {inventory?.length === 0 || inventory === undefined ? (
           <div className="text-center py-12">
             <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-white mb-2">No Cards Yet</h3>

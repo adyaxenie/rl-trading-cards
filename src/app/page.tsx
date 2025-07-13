@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Coins, Package, Timer, User, Star, Trophy, Zap } from 'lucide-react';
-import { useSession } from 'next-auth/react';
+import { Coins, Package, Timer, User, Star, Trophy, Zap, LogIn, Play } from 'lucide-react';
+import { useSession, signIn } from 'next-auth/react';
 import Link from 'next/link';
 import PackOpening from '@/components/PackOpening';
 import Navbar from '@/components/Navbar';
@@ -11,7 +11,7 @@ import { BackgroundBeams } from '@/components/BackgroundBeams';
 
 export default function Home() {
   const { data: session, status } = useSession();
-  const [credits, setCredits] = useState<number>(100);
+  const [credits, setCredits] = useState<number>(0);
   const [lastEarned, setLastEarned] = useState<Date | null>(null);
   const [timeUntilNext, setTimeUntilNext] = useState<number>(0);
 
@@ -83,6 +83,10 @@ export default function Home() {
     }
   ];
 
+  function handleSignIn(event: React.MouseEvent<HTMLButtonElement>): void {
+    throw new Error('Function not implemented.');
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 relative overflow-hidden">
       <BackgroundBeams className="z-0" />
@@ -90,16 +94,16 @@ export default function Home() {
       {/* Header */}
       <Navbar credits={credits} timeUntilNext={timeUntilNext} />
 
-      {/* Hero Section */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-20 pb-16">
+      {/* Hero Section - Instant Load */}
+      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-20 pb-12">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="text-center mb-16"
+          className="text-center mb-12"
         >
           <motion.h1 
-            className="text-6xl md:text-7xl font-black mb-6 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent leading-tight"
+            className="text-5xl md:text-6xl font-black h-20 mb-6 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent leading-tight"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.8 }}
@@ -117,8 +121,9 @@ export default function Home() {
             Experience the thrill of opening packs and building your ultimate esports team.
           </motion.p>
 
+          {/* Instant CTA based on session */}
           <motion.div
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.8 }}
@@ -138,19 +143,59 @@ export default function Home() {
                 </Link>
               </div>
             ) : (
-              <div className="text-center">
-                <div className="text-blue-300 mb-2">Start your collection today!</div>
-                <div className="text-sm text-gray-400">Sign in to begin opening packs</div>
+              <div className="flex justify-center flex-col sm:flex-row gap-4 items-center w-full">
+                <button
+                  onClick={() => signIn('google')}
+                  className="w-full md:w-1/4 flex h-12 items-center justify-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all duration-200"
+                >
+                  <img src="/google_logo.svg" alt="Google logo" className="w-4 h-4" />
+                  <span>Sign In with Google</span>
+                </button>
+                <div className="text-center">
+                  <div className="text-green-300 font-semibold">✨ 2000 Starter Credits</div>
+                  <div className="text-sm text-gray-400">+ 24 credits every hour</div>
+                </div>
               </div>
             )}
           </motion.div>
         </motion.div>
+      </section>
 
-        {/* Features Section */}
+      {/* Pack Opening Section - Moved Up */}
+      <section className="relative z-10 max-w-6xl mx-auto px-6 pb-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8, duration: 0.8 }}
+          className="text-center mb-8"
+        >
+          <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent">
+            {session ? "Choose Your Pack" : "Try Opening a Pack"}
+          </h2>
+          <p className="text-blue-200 text-lg max-w-2xl mx-auto">
+            {session 
+              ? "Each pack contains 5 cards with different rarity distributions. Will you get the legendary Super rare you're looking for?"
+              : "See what you could get! Each pack contains 5 cards with different rarities. Sign in to start collecting for real."
+            }
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 1.0, duration: 0.8 }}
+          className="flex justify-center mb-16"
+        >
+          <PackOpening onPackOpened={setCredits} userCredits={credits} />
+        </motion.div>
+      </section>
+
+      {/* Features Section */}
+      <section className="relative z-10 max-w-7xl mx-auto px-6 pb-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.2, duration: 0.8 }}
           className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16"
         >
           {features.map((feature, index) => {
@@ -160,7 +205,7 @@ export default function Home() {
                 key={feature.title}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8 + index * 0.1, duration: 0.6 }}
+                transition={{ delay: 1.2 + index * 0.1, duration: 0.6 }}
                 className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:border-blue-400/30 transition-all duration-300"
               >
                 <Icon className="w-12 h-12 text-blue-400 mx-auto mb-4" />
@@ -172,54 +217,64 @@ export default function Home() {
         </motion.div>
       </section>
 
-      {/* Pack Opening Section */}
+      {/* Social Proof / Stats Section */}
       <section className="relative z-10 max-w-6xl mx-auto px-6 pb-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.0, duration: 0.8 }}
-          className="text-center mb-12"
+          transition={{ delay: 1.6, duration: 0.8 }}
+          className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-2xl p-8"
         >
-          <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent">
-            Choose Your Pack
-          </h2>
-          <p className="text-blue-200 text-lg max-w-2xl mx-auto">
-            Each pack contains 5 cards with different rarity distributions. 
-            Will you get the legendary Super rare you're looking for?
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 1.2, duration: 0.8 }}
-          className="flex justify-center mb-16"
-        >
-          <PackOpening onPackOpened={setCredits} userCredits={credits} />
+          <h3 className="text-3xl font-bold mb-8 text-center bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent">
+            Pack Statistics
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            <div>
+              <div className="text-3xl font-bold text-green-400 mb-2">60%</div>
+              <div className="text-gray-300">Common Cards</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-blue-400 mb-2">25%</div>
+              <div className="text-gray-300">Rare Cards</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-purple-400 mb-2">13%</div>
+              <div className="text-gray-300">Epic Cards</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-orange-400 mb-2">2%</div>
+              <div className="text-gray-300">Super Rare</div>
+            </div>
+          </div>
         </motion.div>
       </section>
 
-      {/* Pack Stats Section */}
-
-
-      {/* CTA Section */}
-      <section className="relative z-10 max-w-4xl mx-auto px-6 pb-20">
+      {/* Final CTA Section */}
+      <section className="relative max-w-4xl mx-auto px-6 pb-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.6, duration: 0.8 }}
+          transition={{ delay: 1.8, duration: 0.8 }}
           className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 backdrop-blur-sm border border-blue-400/30 rounded-2xl p-8 text-center"
         >
           <h3 className="text-3xl font-bold mb-4 text-white">
-            Ready to Start Your Collection?
+            {session ? "Keep Building Your Collection!" : "Ready to Start Your Collection?"}
           </h3>
           <p className="text-blue-200 mb-6 text-lg">
-            Join to start building your dream Rocket League roster today.
+            {session 
+              ? "You're earning credits automatically. Keep opening packs and collecting your favorite pros!"
+              : "Join to start building your dream Rocket League roster today."
+            }
           </p>
           {!session && (
-            <div className="text-center">
-              <div className="text-blue-300 mb-2">✨ Get 100 free credits when you sign up!</div>
-              <div className="text-sm text-gray-400">Earn 10 credits every hour automatically</div>
+            <div className="flex justify-center px-3 py-2 mt-4">
+              <button
+                onClick={() => signIn('google')}
+                className="w-full md:w-1/2 flex items-center justify-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all duration-200"
+              >
+                <img src="/google_logo.svg" alt="Google logo" className="w-5 h-5" />
+                <span>Sign In with Google</span>
+              </button>
             </div>
           )}
         </motion.div>

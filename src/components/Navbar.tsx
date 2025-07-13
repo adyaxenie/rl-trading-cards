@@ -108,17 +108,32 @@ export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
           <div className="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
             <div className="flex items-center space-x-4">
               {/* Credits */}
-              <motion.div 
+              <motion.button
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/credits', { method: 'POST' });
+                    const data = await response.json();
+                    if (response.ok) {
+                      // Credits will be updated through the interval in the parent component
+                      window.location.reload(); // Simple refresh for now
+                    } else {
+                      console.log(data.error || 'Credits not ready yet');
+                    }
+                  } catch (error) {
+                    console.error('Error claiming credits:', error);
+                  }
+                }}
                 className="flex items-center space-x-2 bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-yellow-400/20 hover:border-yellow-400/40 transition-all duration-300"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                title="Click to claim credits if available"
               >
                 <Coins className="w-4 h-4 text-yellow-400" />
                 <span className="font-semibold text-yellow-400 text-sm">{credits}</span>
-              </motion.div>
+              </motion.button>
 
               {/* Timer - Hidden on mobile */}
-              <motion.div 
+              {/* <motion.div 
                 className="hidden sm:flex items-center space-x-2 bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-green-400/20 hover:border-green-400/40 transition-all duration-300"
                 whileHover={{ scale: 1.05 }}
               >
@@ -126,7 +141,7 @@ export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
                 <span className="text-sm text-green-400">
                   {timeUntilNext > 0 ? formatTime(timeUntilNext) : 'Ready!'}
                 </span>
-              </motion.div>
+              </motion.div> */}
 
               {/* User Authentication */}
               {status === 'loading' ? (
@@ -207,7 +222,7 @@ export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
               })}
               
               {/* Mobile Timer */}
-              <div className="px-3 py-2 mt-4">
+              {/* <div className="px-3 py-2 mt-4">
                 <div className="flex items-center justify-between bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-green-400/20">
                   <div className="flex items-center space-x-2">
                     <Timer className="w-4 h-4 text-green-400" />
@@ -217,7 +232,7 @@ export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
                     {timeUntilNext > 0 ? formatTime(timeUntilNext) : 'Ready!'}
                   </span>
                 </div>
-              </div>
+              </div> */}
 
               {/* Mobile Authentication */}
               {session ? (

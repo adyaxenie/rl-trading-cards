@@ -45,7 +45,7 @@ export const authOptions: NextAuthOptions = {
             
             await db.execute(`
               INSERT INTO users (username, email, credits, last_credit_earn, total_packs_opened)
-              VALUES (?, ?, 100, NOW(), 0)
+              VALUES (?, ?, 2000, NOW(), 0)
             `, [uniqueUsername, user.email])
           }
           

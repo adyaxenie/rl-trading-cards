@@ -20,7 +20,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
   const packTypes = {
     standard: {
       name: 'Standard Pack',
-      cost: 50,
+      cost: 500,
       description: '5 cards with standard odds',
       foilType: 'silver',
       odds: {
@@ -32,7 +32,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
     },
     premium: {
       name: 'Premium Pack',
-      cost: 200,
+      cost: 1000,
       description: '5 cards with BOOSTED Super odds!',
       foilType: 'gold',
       odds: {
@@ -44,7 +44,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
     },
     ultimate: {
       name: 'Ultimate Pack',
-      cost: 500,
+      cost: 2000,
       description: 'Guaranteed Super in every pack!',
       foilType: 'black',
       odds: {
@@ -271,33 +271,6 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
     return (
       <div className="text-center py-12">
         <div className="text-white text-xl">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return (
-      <div className="text-center py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-8 max-w-md mx-auto"
-        >
-          <User className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-          <h3 className="text-2xl font-bold text-white mb-4">Sign In to Play</h3>
-          <p className="text-blue-200 mb-6">
-            Sign in with Google to start opening packs and collecting Rocket League pro cards!
-          </p>
-          <motion.button
-            onClick={() => signIn('google')}
-            className="flex items-center justify-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-lg transition-all duration-200 w-full"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <User className="w-5 h-5" />
-            <span>Sign In with Google</span>
-          </motion.button>
-        </motion.div>
       </div>
     );
   }
