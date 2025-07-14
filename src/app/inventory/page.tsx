@@ -46,10 +46,6 @@ export default function Inventory() {
     }
   };
 
-  useEffect(() => {
-    fetchInventory();
-  }, []);
-
   const fetchInventory = async () => {
     try {
       const response = await fetch('/api/inventory');
@@ -60,6 +56,84 @@ export default function Inventory() {
       console.error('Error fetching inventory:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle selling cards
+  const handleSellCard = async (playerId: number, quantity: number): Promise<{ success: boolean; creditsEarned: number; error?: string }> => {
+    try {
+      const response = await fetch('/api/sell-card', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          playerId, 
+          quantity 
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update credits in state
+        setCredits(data.newBalance);
+        
+        // Update inventory by reducing quantity or removing card
+        setInventory(prevInventory => {
+          return prevInventory.map(item => {
+            if (item.player.id === playerId) {
+              const newQuantity = item.quantity - quantity;
+              if (newQuantity <= 0) {
+                // Remove item if quantity becomes 0 or less
+                return null;
+              }
+              return { ...item, quantity: newQuantity };
+            }
+            return item;
+          }).filter(item => item !== null) as UserCard[];
+        });
+
+        // Update stats
+        if (stats) {
+          setStats(prevStats => {
+            if (!prevStats) return null;
+            
+            // Find the player to get their rarity
+            const soldCard = inventory.find(item => item.player.id === playerId);
+            if (soldCard) {
+              const rarity = soldCard.player.rarity;
+              return {
+                ...prevStats,
+                totalCards: prevStats.totalCards - quantity,
+                rarityBreakdown: {
+                  ...prevStats.rarityBreakdown,
+                  [rarity]: (prevStats.rarityBreakdown[rarity] || 0) - quantity
+                }
+              };
+            }
+            return prevStats;
+          });
+        }
+
+        return {
+          success: true,
+          creditsEarned: data.creditsEarned
+        };
+      } else {
+        return {
+          success: false,
+          creditsEarned: 0,
+          error: data.error || 'Failed to sell card'
+        };
+      }
+    } catch (error) {
+      console.error('Error selling card:', error);
+      return {
+        success: false,
+        creditsEarned: 0,
+        error: 'Network error. Please try again.'
+      };
     }
   };
 
@@ -255,6 +329,8 @@ export default function Inventory() {
                   player={item.player} 
                   quantity={item.quantity}
                   firstObtained={item.first_obtained}
+                  onSell={handleSellCard}
+                  userCredits={credits}
                 />
               </motion.div>
             ))}

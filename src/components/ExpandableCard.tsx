@@ -3,12 +3,14 @@ import { useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useOutsideClick } from "@/hooks/useOutsideClick";
 import { Player } from "@/lib/database";
-import { X, User } from "lucide-react";
+import { X, User, DollarSign, AlertTriangle, Lock } from "lucide-react";
 
 interface ExpandableCardProps {
   player: Player;
   quantity: number;
   firstObtained: Date;
+  onSell?: (playerId: number, quantity: number) => Promise<{ success: boolean; creditsEarned: number; error?: string }>;
+  userCredits?: number;
 }
 
 const rarityColors = {
@@ -39,8 +41,43 @@ const rarityBadgeStyle = {
   'Common': 'bg-gray-500 text-white font-medium',
 };
 
-export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCardProps) {
+// Balanced sell values (conservative approach) with OVR multipliers
+const baseSellValues = {
+  'Super': 250,    // 50% of Standard pack cost
+  'Epic': 75,      // 15% of Standard pack cost
+  'Rare': 30,      // 6% of Standard pack cost
+  'Common': 12     // 2.4% of Standard pack cost
+};
+
+// Calculate sell value based on OVR rating directly
+function calculateSellValue(rarity: keyof typeof baseSellValues, overallRating: number): number {
+  const baseValue = baseSellValues[rarity];
+  
+  // OVR multiplier tiers
+  let multiplier = 1.0;
+  
+  if (overallRating >= 95) {
+    multiplier = 2.0;     // Elite players: 100% bonus
+  } else if (overallRating >= 90) {
+    multiplier = 1.75;    // Superstar players: 75% bonus
+  } else if (overallRating >= 85) {
+    multiplier = 1.5;     // All-Star players: 50% bonus
+  } else if (overallRating >= 80) {
+    multiplier = 1.25;    // Star players: 25% bonus
+  } else if (overallRating >= 75) {
+    multiplier = 1.1;     // Above average players: 10% bonus
+  }
+  // Below 75 OVR: no bonus (1.0x multiplier)
+  
+  return Math.floor(baseValue * multiplier);
+}
+
+export function ExpandableCard({ player, quantity, firstObtained, onSell, userCredits }: ExpandableCardProps) {
   const [active, setActive] = useState<boolean>(false);
+  const [showSellConfirm, setShowSellConfirm] = useState<boolean>(false);
+  const [sellQuantity, setSellQuantity] = useState<number>(1);
+  const [isSelling, setIsSelling] = useState<boolean>(false);
+  const [sellMessage, setSellMessage] = useState<string>('');
   const ref = useRef<HTMLDivElement>(null);
   const id = useId();
 
@@ -48,6 +85,7 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setActive(false);
+        setShowSellConfirm(false);
       }
     }
 
@@ -61,7 +99,63 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [active]);
 
-  useOutsideClick(ref, () => setActive(false));
+  useOutsideClick(ref, () => {
+    setActive(false);
+    setShowSellConfirm(false);
+  });
+
+  const canSell = quantity > 0; // Can't sell your only copy
+  const sellValue = calculateSellValue(player.rarity, player.overall_rating);
+  const totalSellValue = sellValue * sellQuantity;
+
+  // Default sell function if none provided
+  const handleSellCard = onSell || (async (playerId: number, quantity: number) => {
+    // This would typically call your API
+    try {
+      const response = await fetch('/api/sell-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, quantity })
+      });
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return { success: false, creditsEarned: 0, error: 'Failed to sell card' };
+    }
+  });
+
+  const handleSellClick = () => {
+    if (!canSell) return;
+    setShowSellConfirm(true);
+  };
+
+  const confirmSell = async () => {
+    if (!canSell || isSelling) return;
+    
+    setIsSelling(true);
+    setSellMessage('');
+    
+    try {
+      const result = await handleSellCard(player.id, sellQuantity);
+      
+      if (result.success) {
+        setSellMessage(`Sold ${sellQuantity}x ${player.name} for ${result.creditsEarned} credits!`);
+        setShowSellConfirm(false);
+        // Close modal after successful sell
+        setTimeout(() => {
+          setActive(false);
+          setSellMessage('');
+        }, 2000);
+      } else {
+        setSellMessage(result.error || 'Failed to sell card');
+      }
+    } catch (error) {
+      setSellMessage('Error selling card. Please try again.');
+    } finally {
+      setIsSelling(false);
+    }
+  };
 
   const StatBar = ({ label, value, max = 100 }: { label: string; value: number; max?: number }) => (
     <div className="space-y-1">
@@ -105,6 +199,7 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
           />
         )}
       </AnimatePresence>
+      
       <AnimatePresence>
         {active && (
           <div className="fixed inset-0 grid place-items-center z-50 p-4">
@@ -136,6 +231,21 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
                   <X className="w-6 h-6 text-white" />
                 </motion.button>
               </motion.div>
+
+              {/* Sell Success/Error Message */}
+              {sellMessage && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`mx-6 mb-4 p-3 rounded-lg text-center font-medium ${
+                    sellMessage.includes('Sold') 
+                      ? 'bg-green-600/20 border border-green-500/30 text-green-300'
+                      : 'bg-red-600/20 border border-red-500/30 text-red-300'
+                  }`}
+                >
+                  {sellMessage}
+                </motion.div>
+              )}
 
               <div className="px-6 pb-6 flex-1 overflow-y-auto">
                 <div className="grid md:grid-cols-2 gap-6">
@@ -200,10 +310,10 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
                       </div>
                     </motion.div>
 
-                    {/* Collection Info */}
+                    {/* Collection Info & Selling */}
                     <div className="bg-black/30 backdrop-blur-sm rounded-xl p-4 border border-white/10">
                       <h4 className="text-lg font-semibold text-white mb-3">Collection Info</h4>
-                      <div className="space-y-2">
+                      <div className="space-y-2 mb-4">
                         <div className="flex justify-between">
                           <span className="text-gray-300">Quantity:</span>
                           <span className="text-white font-bold">x{quantity}</span>
@@ -223,7 +333,87 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
                             {player.rarity}
                           </span>
                         </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">Sell Value:</span>
+                          <span className="text-green-400 font-bold">{sellValue} credits</span>
+                        </div>
                       </div>
+
+                      {/* Selling Section - Always show sell button */}
+                      <div className="border-t border-white/10 pt-4">
+                        {!showSellConfirm ? (
+                          <div>
+                            <button
+                              onClick={handleSellClick}
+                              disabled={!canSell}
+                              className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg font-medium transition-all ${
+                                canSell
+                                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                                  : 'bg-gray-600 cursor-not-allowed text-gray-400'
+                              }`}
+                            >
+                              {canSell ? (
+                                <>
+                                  <DollarSign size={16} />
+                                  Sell Card
+                                </>
+                              ) : (
+                                <>
+                                  <Lock size={16} />
+                                  Can't Sell Only Copy
+                                </>
+                              )}
+                            </button>
+                            {!canSell && (
+                              <p className="text-xs text-gray-400 mt-2 text-center">
+                                Keep at least 1 copy for your collection
+                              </p>
+                            )}
+                          </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-yellow-400">
+                                <AlertTriangle size={16} />
+                                <span className="font-medium">Confirm Sale</span>
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <label className="text-sm text-gray-300">Quantity to sell:</label>
+                                <input
+                                  type="range"
+                                  min="1"
+                                  max={Math.max(1, quantity - 1)}
+                                  value={sellQuantity}
+                                  onChange={(e) => setSellQuantity(parseInt(e.target.value))}
+                                  className="w-full"
+                                />
+                                <div className="flex justify-between text-xs text-gray-400">
+                                  <span>1</span>
+                                  <span className="text-white font-medium">
+                                    Selling: {sellQuantity}x for {totalSellValue} credits
+                                  </span>
+                                  <span>{Math.max(1, quantity - 1)}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => setShowSellConfirm(false)}
+                                  className="flex-1 py-2 px-4 rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-medium transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={confirmSell}
+                                  disabled={isSelling}
+                                  className="flex-1 py-2 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-medium transition-colors"
+                                >
+                                  {isSelling ? 'Selling...' : 'Confirm'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                     </div>
                   </div>
 
@@ -268,6 +458,24 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
                             {player.team_sync}
                           </div>
                           <div className="text-sm text-gray-300">Teamwork</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Market Value Info - Always show */}
+                    <div className="bg-black/30 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                      <h4 className="text-xl font-semibold text-white mb-4">Market Value</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-300">Current Value:</span>
+                          <span className="text-green-400 font-bold">{sellValue} credits</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-300">Total Sellable:</span>
+                          <span className="text-green-400 font-bold">{sellValue * Math.max(1, quantity - 1)} credits</span>
+                        </div>
+                        <div className="text-xs text-gray-400 pt-2 border-t border-white/10">
+                          💡 Tip: Higher OVR players are worth more credits! Value increases with overall rating.
                         </div>
                       </div>
                     </div>
@@ -372,6 +580,14 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
             <div className="flex justify-between">
               <span>CHA</span>
               <span>{player.challenges}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>IQ</span>
+              <span>{player.game_iq}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>SYNC</span>
+              <span>{player.team_sync}</span>
             </div>
           </div>
         </div>
