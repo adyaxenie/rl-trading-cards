@@ -283,7 +283,7 @@ export function ExpandableCard({ player, quantity, firstObtained }: ExpandableCa
       <motion.div
         layoutId={`card-${player.id}-${id}`}
         onClick={() => setActive(true)}
-        className={`relative w-full h-80 cursor-pointer rounded-xl ${rarityBorder[player.rarity]} 
+        className={`relative w-full h-80 cursor-pointer rounded-xl 
                     bg-gradient-to-br ${rarityColors[player.rarity]} 
                     bg-metal-800 overflow-hidden hover:scale-105 transition-all duration-300 ${rarityGlow[player.rarity]}`}
       >

@@ -66,61 +66,63 @@ export async function getAllPlayers(): Promise<Player[]> {
   return rows as Player[];
 }
 
+// Updated pack rates based on collection size (24 Supers out of 200 total cards)
 export async function getRandomCards(count: number = 5, packType: string = 'standard'): Promise<Player[]> {
   const db = await getDb();
   const [players] = await db.execute('SELECT * FROM players');
   const playersArray = players as Player[];
   
-  // Different weighted selection based on pack type
-  const weightedPlayers: Player[] = [];
-  
-  if (packType === 'ultimate') {
-    // Ultimate pack: Only Super rarity cards
-    const superPlayers = playersArray.filter(player => player.rarity === 'Super');
-    const selectedCards: Player[] = [];
-    for (let i = 0; i < count; i++) {
-      const randomIndex = Math.floor(Math.random() * superPlayers.length);
-      selectedCards.push(superPlayers[randomIndex]);
-    }
-    return selectedCards;
-  } else if (packType === 'premium') {
-    // Premium pack: Much higher odds for Super and Epic cards
-    playersArray.forEach(player => {
-      let weight: number;
-      switch(player.rarity) {
-        case 'Super': weight = 25; break;   // 25x higher chance than standard
-        case 'Epic': weight = 15; break;    // 3x higher chance than standard  
-        case 'Rare': weight = 8; break;     // Slightly lower than standard
-        case 'Common': weight = 2; break;   // Much lower than standard
-        default: weight = 2;
-      }
-      
-      for (let i = 0; i < weight; i++) {
-        weightedPlayers.push(player);
-      }
-    });
-  } else {
-    // Standard pack: Original odds
-    playersArray.forEach(player => {
-      let weight: number;
-      switch(player.rarity) {
-        case 'Super': weight = 1; break;
-        case 'Epic': weight = 5; break;
-        case 'Rare': weight = 15; break;
-        case 'Common': weight = 30; break;
-        default: weight = 30;
-      }
-      
-      for (let i = 0; i < weight; i++) {
-        weightedPlayers.push(player);
-      }
-    });
-  }
+  // Separate players by rarity for better control
+  const superPlayers = playersArray.filter(player => player.rarity === 'Super');
+  const epicPlayers = playersArray.filter(player => player.rarity === 'Epic');
+  const rarePlayers = playersArray.filter(player => player.rarity === 'Rare');
+  const commonPlayers = playersArray.filter(player => player.rarity === 'Common');
   
   const selectedCards: Player[] = [];
+  
+  // Pack-specific rate implementation
+  const packRates = {
+    standard: { super: 1.5, epic: 8, rare: 28, common: 62.5 },
+    premium: { super: 6, epic: 22, rare: 35, common: 37 },
+    ultimate: { super: 15, epic: 40, rare: 35, common: 10 }
+  };
+  
+  const rates = packRates[packType as keyof typeof packRates] || packRates.standard;
+  
   for (let i = 0; i < count; i++) {
-    const randomIndex = Math.floor(Math.random() * weightedPlayers.length);
-    selectedCards.push(weightedPlayers[randomIndex]);
+    const randomValue = Math.random() * 100;
+    let selectedPlayer: Player;
+    
+    if (randomValue < rates.super) {
+      // Super card
+      if (superPlayers.length > 0) {
+        selectedPlayer = superPlayers[Math.floor(Math.random() * superPlayers.length)];
+      } else {
+        // Fallback to Epic if no Supers available
+        selectedPlayer = epicPlayers[Math.floor(Math.random() * epicPlayers.length)];
+      }
+    } else if (randomValue < rates.super + rates.epic) {
+      // Epic card
+      if (epicPlayers.length > 0) {
+        selectedPlayer = epicPlayers[Math.floor(Math.random() * epicPlayers.length)];
+      } else {
+        // Fallback to Rare if no Epics available
+        selectedPlayer = rarePlayers[Math.floor(Math.random() * rarePlayers.length)];
+      }
+    } else if (randomValue < rates.super + rates.epic + rates.rare) {
+      // Rare card
+      if (rarePlayers.length > 0) {
+        selectedPlayer = rarePlayers[Math.floor(Math.random() * rarePlayers.length)];
+      } else {
+        // Fallback to Common if no Rares available
+        selectedPlayer = commonPlayers[Math.floor(Math.random() * commonPlayers.length)];
+      }
+    } else {
+      // Common card
+      selectedPlayer = commonPlayers[Math.floor(Math.random() * commonPlayers.length)];
+    }
+    
+    selectedCards.push(selectedPlayer);
   }
   
   return selectedCards;
@@ -216,6 +218,7 @@ export async function getUserStats(userId: number): Promise<{
   uniqueCards: number;
   totalPacks: number;
   rarityBreakdown: { [key: string]: number };
+  superProgress: { collected: number; total: number; percentage: number };
 }> {
   const db = await getDb();
   
@@ -244,20 +247,42 @@ export async function getUserStats(userId: number): Promise<{
     GROUP BY p.rarity
   `, [userId]);
   
+  // Get Super collection progress
+  const [totalSupers] = await db.execute(`
+    SELECT COUNT(*) as total FROM players WHERE rarity = 'Super'
+  `);
+  
+  const [collectedSupers] = await db.execute(`
+    SELECT COUNT(DISTINCT uc.player_id) as collected
+    FROM user_cards uc
+    JOIN players p ON uc.player_id = p.id
+    WHERE uc.user_id = ? AND p.rarity = 'Super'
+  `, [userId]);
+  
   const cardStatsResult = cardStats as any[];
   const userStatsResult = userStats as any[];
   const rarityStatsResult = rarityStats as any[];
+  const totalSupersResult = totalSupers as any[];
+  const collectedSupersResult = collectedSupers as any[];
   
   const rarityBreakdown: { [key: string]: number } = {};
   rarityStatsResult.forEach((row: any) => {
     rarityBreakdown[row.rarity] = row.count;
   });
   
+  const totalSuperCards = totalSupersResult[0]?.total || 24;
+  const collectedSuperCards = collectedSupersResult[0]?.collected || 0;
+  
   return {
     totalCards: cardStatsResult[0]?.total_cards || 0,
     uniqueCards: cardStatsResult[0]?.unique_cards || 0,
     totalPacks: userStatsResult[0]?.total_packs_opened || 0,
-    rarityBreakdown
+    rarityBreakdown,
+    superProgress: {
+      collected: collectedSuperCards,
+      total: totalSuperCards,
+      percentage: Math.round((collectedSuperCards / totalSuperCards) * 100)
+    }
   };
 }
 
@@ -269,12 +294,12 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   return result[0] || null;
 }
 
-// Create new user (for NextAuth)
+// Create new user with first-time bonus (2500 credits for opening loop)
 export async function createUser(name: string, email: string): Promise<User> {
   const db = await getDb();
   const [result] = await db.execute(`
     INSERT INTO users (username, email, credits, last_credit_earn, total_packs_opened)
-    VALUES (?, ?, 100, NOW(), 0)
+    VALUES (?, ?, 2500, NOW(), 0)
   `, [name, email]);
   
   const insertResult = result as any;

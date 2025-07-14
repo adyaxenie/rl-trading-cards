@@ -95,7 +95,8 @@ export default function Home() {
       <Navbar credits={credits} timeUntilNext={timeUntilNext} />
 
       {/* Hero Section - Instant Load */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-20 pb-12">
+      {!session && (
+      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-20">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -160,9 +161,10 @@ export default function Home() {
           </motion.div>
         </motion.div>
       </section>
+      )}
 
       {/* Pack Opening Section - Moved Up */}
-      <section className="relative z-10 max-w-6xl mx-auto px-6 pb-16">
+      <section className="relative z-10 max-w-6xl mx-auto px-6 pb-16 mt-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

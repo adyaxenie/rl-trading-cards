@@ -21,38 +21,44 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
     standard: {
       name: 'Standard Pack',
       cost: 500,
-      description: '5 cards with standard odds',
+      description: '5 cards with standard odds - broad collection building',
       foilType: 'silver',
       odds: {
-        'Super': '2%',
-        'Epic': '10%', 
-        'Rare': '29%',
-        'Common': '59%'
-      }
+        'Super': '1.5%',
+        'Epic': '8%', 
+        'Rare': '28%',
+        'Common': '62.5%'
+      },
+      efficiency: '0.3 Super/1000 credits',
+      recommendation: 'Best for early collection building'
     },
     premium: {
       name: 'Premium Pack',
       cost: 1000,
-      description: '5 cards with BOOSTED Super odds!',
+      description: '5 cards with boosted rates - efficient Super hunting!',
       foilType: 'gold',
       odds: {
-        'Super': '50%',
-        'Epic': '30%',
-        'Rare': '16%', 
-        'Common': '4%'
-      }
+        'Super': '6%',
+        'Epic': '22%',
+        'Rare': '35%', 
+        'Common': '37%'
+      },
+      efficiency: '0.6 Super/1000 credits',
+      recommendation: 'Optimal rate per credit'
     },
     ultimate: {
       name: 'Ultimate Pack',
       cost: 2000,
-      description: 'Guaranteed Super in every pack!',
+      description: 'Premium efficiency - best for completing Super collection!',
       foilType: 'black',
       odds: {
-        'Super': '100%',
-        'Epic': '0%',
-        'Rare': '0%', 
-        'Common': '0%'
-      }
+        'Super': '15%',
+        'Epic': '40%',
+        'Rare': '35%', 
+        'Common': '10%'
+      },
+      efficiency: '0.75 Super/1000 credits',
+      recommendation: 'Best for targeting high-rarity cards'
     }
   };
 
@@ -224,9 +230,9 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
           </div>
         </div>
         
-        {/* Floating info panel on hover */}
+        {/* Enhanced floating info panel on hover */}
         <motion.div
-          className={`absolute -bottom-16 left-0 right-0 bg-black/90 backdrop-blur-sm rounded-lg p-3 transition-all duration-300 ${
+          className={`absolute -bottom-20 left-0 right-0 bg-black/95 backdrop-blur-sm rounded-lg p-4 transition-all duration-300 ${
             !isDisabled ? 'opacity-0 group-hover:opacity-100' : 'opacity-0'
           }`}
           initial={false}
@@ -234,16 +240,28 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
           <div className="text-center text-white">
             <div className="font-bold text-sm mb-1">{pack.name}</div>
             <div className="text-xs text-gray-300 mb-2">{pack.description}</div>
-            <div className={`text-lg font-bold mb-1 ${
+            <div className={`text-lg font-bold mb-2 ${
               canAfford ? 'text-yellow-400' : 'text-red-400'
             }`}>
               {pack.cost} Credits
             </div>
+            
+            {/* Strategy recommendation */}
+            <div className="text-xs text-blue-300 mb-2 font-medium">
+              {pack.recommendation}
+            </div>
+            
+            {/* Efficiency indicator */}
+            <div className="text-xs text-green-300 mb-2">
+              Efficiency: {pack.efficiency}
+            </div>
+            
             {!canAfford && session && (
               <div className="text-xs text-red-400 mb-2">
                 Need {pack.cost - userCredits} more credits
               </div>
             )}
+            
             <div className="mt-2 text-xs">
               <div className="font-semibold mb-1">Drop Rates:</div>
               <div className="grid grid-cols-2 gap-1">
@@ -251,8 +269,8 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
                   <div key={rarity} className="flex justify-between">
                     <span className={
                       rarity === 'Super' ? 'text-yellow-300' :
-                      rarity === 'Epic' ? 'text-yellow-300' :
-                      rarity === 'Rare' ? 'text-slate-300' :
+                      rarity === 'Epic' ? 'text-purple-300' :
+                      rarity === 'Rare' ? 'text-blue-300' :
                       'text-gray-400'
                     }>{rarity}:</span>
                     <span className="font-bold">{String(rate)}</span>
@@ -290,6 +308,33 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
         }
       `}</style>
       
+      {/* Pack strategy guide */}
+      {!showCards && !isOpening && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 bg-black/40 backdrop-blur-sm rounded-lg p-4 max-w-4xl mx-auto"
+        >
+          <div className="text-white text-sm">
+            <div className="font-bold mb-2">💡 Pack Strategy Guide</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className="text-center">
+                <div className="font-semibold text-slate-300">Early Game (0-30% collection)</div>
+                <div className="text-gray-400">Choose Standard packs for collection building</div>
+              </div>
+              <div className="text-center">
+                <div className="font-semibold text-yellow-300">Mid Game (30-70% collection)</div>
+                <div className="text-gray-400">Premium packs offer best rate efficiency</div>
+              </div>
+              <div className="text-center">
+                <div className="font-semibold text-purple-300">Late Game (70%+ collection)</div>
+                <div className="text-gray-400">Ultimate packs for missing high-rarity cards</div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+      
       <AnimatePresence mode="wait">
         {!showCards ? (
           <motion.div
@@ -301,7 +346,6 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
           >
             {!isOpening ? (
               <>
-                {/* <h3 className="text-2xl font-bold text-white mb-8">Choose Your Pack</h3> */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
                   {Object.entries(packTypes).map(([type, pack]) => (
                     <FoilPack 
@@ -318,7 +362,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
                 <div className="relative w-64 h-96 mb-6">
                   <motion.div
                     className={`
-                      w-full h-full rounded-xl relative overflow-hidden shadow-2xl border-2
+                      w-full h-full rounded-xl relative overflow-hidden shadow-2xl
                       ${packTypes[selectedPack as keyof typeof packTypes].foilType === 'silver'
                         ? 'bg-gradient-to-br from-slate-200 via-gray-300 to-slate-400 border-slate-300' 
                         : packTypes[selectedPack as keyof typeof packTypes].foilType === 'gold'
@@ -374,8 +418,8 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
                 ).map(([rarity, count]) => (
                   <span key={rarity} className={`font-semibold ${
                     rarity === 'Super' ? 'text-yellow-400' :
-                    rarity === 'Epic' ? 'text-yellow-400' :
-                    rarity === 'Rare' ? 'text-slate-400' :
+                    rarity === 'Epic' ? 'text-purple-400' :
+                    rarity === 'Rare' ? 'text-blue-400' :
                     'text-gray-400'
                   }`}>
                     {count}x {rarity}
