@@ -67,7 +67,7 @@ export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
                 <motion.h1 
                   className="text-xl font-black bg-white bg-clip-text text-transparent cursor-pointer tracking-wide"
                 >
-                  RL.TCG
+                  <em>RL.TCG</em>
                 </motion.h1>
               </Link>
             </div>
@@ -129,7 +129,7 @@ export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
                 title="Click to claim credits if available"
               >
                 <Coins className="w-4 h-4 text-yellow-400" />
-                <span className="font-semibold text-yellow-400 text-sm">{credits}</span>
+                <span className="font-semibold text-yellow-400 text-sm">{credits.toLocaleString()}</span>
               </motion.button>
 
               {/* Timer - Hidden on mobile */}

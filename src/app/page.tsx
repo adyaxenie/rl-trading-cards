@@ -154,7 +154,7 @@ export default function Home() {
                 </button>
                 <div className="text-center">
                   <div className="text-green-300 font-semibold">✨ 2500 Starter Pack Credits</div>
-                  {/* <div className="text-sm text-gray-400">+ 24 credits every hour</div> */}
+                  <div className="text-sm text-gray-400">+ 250 Daily Credits</div>
                 </div>
               </div>
             )}
