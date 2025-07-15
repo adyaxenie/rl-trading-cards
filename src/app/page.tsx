@@ -153,8 +153,8 @@ export default function Home() {
                   <span>Sign In with Google</span>
                 </button>
                 <div className="text-center">
-                  <div className="text-green-300 font-semibold">✨ 2000 Starter Credits</div>
-                  <div className="text-sm text-gray-400">+ 24 credits every hour</div>
+                  <div className="text-green-300 font-semibold">✨ 2500 Starter Pack Credits</div>
+                  {/* <div className="text-sm text-gray-400">+ 24 credits every hour</div> */}
                 </div>
               </div>
             )}

@@ -37,7 +37,7 @@ export interface UserCard {
   player: Player;
 }
 
-// Updated database configuration with better connection management
+// Updated database configuration with valid MySQL2 options
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
@@ -46,11 +46,11 @@ const dbConfig = {
   waitForConnections: true,
   connectionLimit: 5,        // Reduced from 10 to 5 for development
   queueLimit: 0,
-  acquireTimeout: 60000,     // 60 seconds timeout
-  timeout: 60000,            // 60 seconds timeout
-  reconnect: true,
-  idleTimeout: 300000,       // 5 minutes idle timeout
-  maxIdle: 5,                // Maximum idle connections
+  // Valid MySQL2 pool options only
+  idleTimeout: 300000,       // 5 minutes idle timeout (valid)
+  maxIdle: 5,                // Maximum idle connections (valid)
+  enableKeepAlive: true,     // Keep connections alive
+  keepAliveInitialDelay: 0,  // Initial delay for keep alive
 };
 
 let pool: mysql.Pool | null = null;
@@ -64,8 +64,7 @@ export async function getDb(): Promise<mysql.Pool> {
       console.log(`New connection established as id ${connection.threadId}`);
     });
     
-    // The promise-based pool does not support 'error' event listeners.
-    // If you need to handle errors, catch them in your query functions.
+    // Removed unsupported 'error' event listener for promise pool
   }
   return pool;
 }

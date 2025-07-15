@@ -49,7 +49,7 @@ const rarityBadgeStyle = {
 // Balanced sell values (conservative approach) with OVR multipliers
 const baseSellValues = {
   'Super': 250,    // 50% of Standard pack cost
-  'Epic': 75,      // 15% of Standard pack cost
+  'Epic': 100,      // 20% of Standard pack cost
   'Rare': 30,      // 6% of Standard pack cost
   'Common': 12     // 2.4% of Standard pack cost
 };
