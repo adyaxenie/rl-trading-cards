@@ -12,7 +12,7 @@ interface NavbarProps {
   timeUntilNext: number;
 }
 
-export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
+export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
   const { data: session, status } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -129,7 +129,7 @@ export default function Navbar({ credits, timeUntilNext }: NavbarProps) {
                 title="Click to claim credits if available"
               >
                 <Coins className="w-4 h-4 text-yellow-400" />
-                <span className="font-semibold text-yellow-400 text-sm">{credits.toLocaleString()}</span>
+                <span className="font-semibold text-yellow-400 text-sm">{credits?.toLocaleString() || 0}</span>
               </motion.button>
 
               {/* Timer - Hidden on mobile */}

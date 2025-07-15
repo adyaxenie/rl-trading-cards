@@ -243,7 +243,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
             <div className={`text-lg font-bold mb-2 ${
               canAfford ? 'text-yellow-400' : 'text-red-400'
             }`}>
-              {(pack.cost).toLocaleString()} Credits
+              {(pack.cost).toLocaleString() || 0} Credits
             </div>
             
             {/* Strategy recommendation */}
