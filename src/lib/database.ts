@@ -92,12 +92,12 @@ export async function executeQuery<T = any>(
   }
 }
 
-// Create new user with first-time bonus (2500 credits for opening loop)
+// Create new user with first-time bonus (3500 credits for opening loop)
 export async function createUser(name: string, email: string): Promise<User> {
   try {
     const [result] = await executeQuery(`
       INSERT INTO users (username, email, credits, last_credit_earn, total_packs_opened)
-      VALUES (?, ?, 2500, NOW(), 0)
+      VALUES (?, ?, 3500, NOW(), 0)
     `, [name, email]);
     
     const insertResult = result as any;
