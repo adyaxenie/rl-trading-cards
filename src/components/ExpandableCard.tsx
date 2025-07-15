@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useOutsideClick } from "@/hooks/useOutsideClick";
@@ -9,7 +8,13 @@ interface ExpandableCardProps {
   player: Player;
   quantity: number;
   firstObtained: Date;
-  onSell?: (playerId: number, quantity: number) => Promise<{ success: boolean; creditsEarned: number; error?: string }>;
+  onSell?: (playerId: number, quantity: number) => Promise<{ 
+    success: boolean; 
+    creditsEarned: number; 
+    remainingQuantity?: number;
+    error?: string 
+  }>;
+  onInventoryUpdate?: () => void; // New prop to notify parent of inventory changes
   userCredits?: number;
 }
 
@@ -72,14 +77,20 @@ function calculateSellValue(rarity: keyof typeof baseSellValues, overallRating: 
   return Math.floor(baseValue * multiplier);
 }
 
-export function ExpandableCard({ player, quantity, firstObtained, onSell, userCredits }: ExpandableCardProps) {
+export function ExpandableCard({ player, quantity, firstObtained, onSell, onInventoryUpdate, userCredits }: ExpandableCardProps) {
   const [active, setActive] = useState<boolean>(false);
   const [showSellConfirm, setShowSellConfirm] = useState<boolean>(false);
   const [sellQuantity, setSellQuantity] = useState<number>(1);
   const [isSelling, setIsSelling] = useState<boolean>(false);
   const [sellMessage, setSellMessage] = useState<string>('');
+  const [currentQuantity, setCurrentQuantity] = useState<number>(quantity); // Track quantity locally
   const ref = useRef<HTMLDivElement>(null);
   const id = useId();
+
+  // Update local quantity when prop changes
+  useEffect(() => {
+    setCurrentQuantity(quantity);
+  }, [quantity]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -96,7 +107,12 @@ export function ExpandableCard({ player, quantity, firstObtained, onSell, userCr
     }
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    
+    // Cleanup function to ensure body overflow is always reset
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "auto";
+    };
   }, [active]);
 
   useOutsideClick(ref, () => {
@@ -104,7 +120,7 @@ export function ExpandableCard({ player, quantity, firstObtained, onSell, userCr
     setShowSellConfirm(false);
   });
 
-  const canSell = quantity > 0; // Can't sell your only copy
+  const canSell = currentQuantity > 0; // Use local quantity state
   const sellValue = calculateSellValue(player.rarity, player.overall_rating);
   const totalSellValue = sellValue * sellQuantity;
 
@@ -142,11 +158,28 @@ export function ExpandableCard({ player, quantity, firstObtained, onSell, userCr
       if (result.success) {
         setSellMessage(`Sold ${sellQuantity}x ${player.name} for ${result.creditsEarned} credits!`);
         setShowSellConfirm(false);
-        // Close modal after successful sell
+        
+        // Update local quantity state
+        const newQuantity = currentQuantity - sellQuantity;
+        setCurrentQuantity(newQuantity);
+        
+        // Reset sell quantity for next time
+        setSellQuantity(1);
+        
+        // Notify parent component to refresh inventory
+        if (onInventoryUpdate) {
+          onInventoryUpdate();
+        }
+        
+        // Close modal after successful sell, especially if no cards left
         setTimeout(() => {
-          setActive(false);
+          if (newQuantity <= 0) {
+            // Ensure body overflow is reset before component unmounts
+            document.body.style.overflow = "auto";
+            setActive(false);
+          }
           setSellMessage('');
-        }, 2000);
+        }, 1500); // Reduced timeout to close faster
       } else {
         setSellMessage(result.error || 'Failed to sell card');
       }
@@ -156,6 +189,20 @@ export function ExpandableCard({ player, quantity, firstObtained, onSell, userCr
       setIsSelling(false);
     }
   };
+
+  // Clean up body overflow and close modal if no cards left
+  useEffect(() => {
+    if (currentQuantity <= 0 && active) {
+      // Restore body overflow before component disappears
+      document.body.style.overflow = "auto";
+      setActive(false);
+    }
+  }, [currentQuantity, active]);
+
+  // Don't render if no cards left
+  if (currentQuantity <= 0) {
+    return null;
+  }
 
   const StatBar = ({ label, value, max = 100 }: { label: string; value: number; max?: number }) => (
     <div className="space-y-1">
@@ -277,9 +324,9 @@ export function ExpandableCard({ player, quantity, firstObtained, onSell, userCr
                       </div>
 
                       {/* Quantity Badge */}
-                      {quantity > 1 && (
+                      {currentQuantity > 1 && (
                         <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm font-bold border border-white/20 z-10">
-                          x{quantity}
+                          x{currentQuantity}
                         </div>
                       )}
 
@@ -316,7 +363,7 @@ export function ExpandableCard({ player, quantity, firstObtained, onSell, userCr
                       <div className="space-y-2 mb-4">
                         <div className="flex justify-between">
                           <span className="text-gray-300">Quantity:</span>
-                          <span className="text-white font-bold">x{quantity}</span>
+                          <span className="text-white font-bold">x{currentQuantity}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-300">First Obtained:</span>
@@ -359,14 +406,14 @@ export function ExpandableCard({ player, quantity, firstObtained, onSell, userCr
                                 </>
                               ) : (
                                 <>
-                                  <Lock size={16} />
-                                  Can't Sell Only Copy
+                                  <DollarSign size={16} />
+                                  No Cards to Sell
                                 </>
                               )}
                             </button>
                             {!canSell && (
                               <p className="text-xs text-gray-400 mt-2 text-center">
-                                Keep at least 1 copy for your collection
+                                You don't have any copies of this card
                               </p>
                             )}
                           </div>
@@ -379,21 +426,21 @@ export function ExpandableCard({ player, quantity, firstObtained, onSell, userCr
                               
                               <div className="space-y-2">
                                 <label className="text-sm text-gray-300">Quantity to sell:</label>
-                                <input
-                                  type="range"
-                                  min="1"
-                                  max={Math.max(1, quantity - 1)}
-                                  value={sellQuantity}
-                                  onChange={(e) => setSellQuantity(parseInt(e.target.value))}
-                                  className="w-full"
-                                />
-                                <div className="flex justify-between text-xs text-gray-400">
-                                  <span>1</span>
-                                  <span className="text-white font-medium">
-                                    Selling: {sellQuantity}x for {totalSellValue} credits
-                                  </span>
-                                  <span>{Math.max(1, quantity - 1)}</span>
-                                </div>
+                                  <input
+                                    type="range"
+                                    min="1"
+                                    max={currentQuantity} // Use current quantity
+                                    value={Math.min(sellQuantity, currentQuantity)} // Ensure sell quantity doesn't exceed current
+                                    onChange={(e) => setSellQuantity(parseInt(e.target.value))}
+                                    className="w-full"
+                                  />
+                                  <div className="flex justify-between text-xs text-gray-400">
+                                    <span>1</span>
+                                    <span className="text-white font-medium">
+                                      Selling: {Math.min(sellQuantity, currentQuantity)}x for {sellValue * Math.min(sellQuantity, currentQuantity)} credits
+                                    </span>
+                                    <span>{currentQuantity}</span>
+                                  </div>
                               </div>
 
                               <div className="flex gap-2">
@@ -471,8 +518,8 @@ export function ExpandableCard({ player, quantity, firstObtained, onSell, userCr
                           <span className="text-green-400 font-bold">{sellValue} credits</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-300">Total Sellable:</span>
-                          <span className="text-green-400 font-bold">{sellValue * Math.max(1, quantity - 1)} credits</span>
+                          <span className="text-gray-300">Max Sellable:</span>
+                          <span className="text-green-400 font-bold">{sellValue * currentQuantity} credits</span>
                         </div>
                         <div className="text-xs text-gray-400 pt-2 border-t border-white/10">
                           💡 Tip: Higher OVR players are worth more credits! Value increases with overall rating.
@@ -515,9 +562,9 @@ export function ExpandableCard({ player, quantity, firstObtained, onSell, userCr
         </div>
 
         {/* Quantity Badge */}
-        {quantity > 1 && (
+        {currentQuantity > 1 && (
           <div className="absolute top-2 left-2 bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded-full text-xs font-bold border border-white/20 z-10">
-            x{quantity}
+            x{currentQuantity}
           </div>
         )}
 

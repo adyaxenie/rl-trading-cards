@@ -59,8 +59,26 @@ export default function Inventory() {
     }
   };
 
-  // Handle selling cards
-  const handleSellCard = async (playerId: number, quantity: number): Promise<{ success: boolean; creditsEarned: number; error?: string }> => {
+  // Add the missing handleInventoryUpdate function
+  const handleInventoryUpdate = async () => {
+    try {
+      // Re-fetch both inventory and credits after a successful sale
+      await Promise.all([
+        fetchInventory(),
+        fetchCredits()
+      ]);
+    } catch (error) {
+      console.error('Error updating inventory:', error);
+    }
+  };
+
+  // Handle selling cards - you can keep this as a backup or remove it since the ExpandableCard handles it internally
+  const handleSellCard = async (playerId: number, quantity: number): Promise<{ 
+    success: boolean; 
+    creditsEarned: number; 
+    remainingQuantity?: number;
+    error?: string 
+  }> => {
     try {
       const response = await fetch('/api/sell-card', {
         method: 'POST',
@@ -76,22 +94,24 @@ export default function Inventory() {
       const data = await response.json();
       
       if (data.success) {
-        // Update credits in state
+        // Update credits in state immediately
         setCredits(data.newBalance);
         
         // Update inventory by reducing quantity or removing card
         setInventory(prevInventory => {
-          return prevInventory.map(item => {
+          return prevInventory.reduce((acc, item) => {
             if (item.player.id === playerId) {
               const newQuantity = item.quantity - quantity;
-              if (newQuantity <= 0) {
-                // Remove item if quantity becomes 0 or less
-                return null;
+              if (newQuantity > 0) {
+                // Only keep the item if quantity is still positive
+                acc.push({ ...item, quantity: newQuantity });
               }
-              return { ...item, quantity: newQuantity };
+              // If newQuantity <= 0, don't push anything (removes the item)
+            } else {
+              acc.push(item);
             }
-            return item;
-          }).filter(item => item !== null) as UserCard[];
+            return acc;
+          }, [] as UserCard[]);
         });
 
         // Update stats
@@ -103,12 +123,16 @@ export default function Inventory() {
             const soldCard = inventory.find(item => item.player.id === playerId);
             if (soldCard) {
               const rarity = soldCard.player.rarity;
+              const uniqueCardsChange = (item: UserCard) => item.player.id === playerId && item.quantity === quantity ? -1 : 0;
+              const uniqueDecrease = inventory.some(item => item.player.id === playerId && item.quantity === quantity) ? 1 : 0;
+              
               return {
                 ...prevStats,
                 totalCards: prevStats.totalCards - quantity,
+                uniqueCards: prevStats.uniqueCards - uniqueDecrease,
                 rarityBreakdown: {
                   ...prevStats.rarityBreakdown,
-                  [rarity]: (prevStats.rarityBreakdown[rarity] || 0) - quantity
+                  [rarity]: Math.max(0, (prevStats.rarityBreakdown[rarity] || 0) - quantity)
                 }
               };
             }
@@ -118,7 +142,8 @@ export default function Inventory() {
 
         return {
           success: true,
-          creditsEarned: data.creditsEarned
+          creditsEarned: data.creditsEarned,
+          remainingQuantity: data.remainingQuantity
         };
       } else {
         return {
@@ -221,7 +246,7 @@ export default function Inventory() {
               <div className="text-3xl font-bold text-white">
                 {stats.rarityBreakdown.Super || 0}
               </div>
-              <div className="text-sm text-yellow-200">Super Cards</div>
+              <div className="text-sm text-white">Super Cards</div>
             </div>
           </div>
 
@@ -229,26 +254,26 @@ export default function Inventory() {
           <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-8">
             <h3 className="text-2xl font-semibold text-white mb-6 text-center">Collection Breakdown</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="bg-black/20 rounded-lg p-4 text-center border border-yellow-400/20">
-                <div className="text-2xl font-bold text-yellow-300 mb-1">
+                <div className="bg-black/20 rounded-lg p-4 text-center border border-white/20 shadow-[0_0_16px_4px_rgba(255,255,255,0.3)]">
+                <div className="text-2xl font-bold text-white mb-1">
                   {stats.rarityBreakdown.Super || 0}
                 </div>
-                <div className="text-sm text-yellow-200">Super</div>
+                <div className="text-sm text-white">Super</div>
               </div>
-              <div className="bg-black/20 rounded-lg p-4 text-center border border-purple-400/20">
-                <div className="text-2xl font-bold text-purple-400 mb-1">
+              <div className="bg-black/20 rounded-lg p-4 text-center border border-yellow-400/20">
+                <div className="text-2xl font-bold text-yellow-400 mb-1">
                   {stats.rarityBreakdown.Epic || 0}
                 </div>
-                <div className="text-sm text-purple-200">Epic</div>
+                <div className="text-sm text-yellow-200">Epic</div>
               </div>
-              <div className="bg-black/20 rounded-lg p-4 text-center border border-blue-400/20">
-                <div className="text-2xl font-bold text-blue-400 mb-1">
+              <div className="bg-black/20 rounded-lg p-4 text-center border border-gray-200/20">
+                <div className="text-2xl font-bold text-gray-200 mb-1">
                   {stats.rarityBreakdown.Rare || 0}
                 </div>
-                <div className="text-sm text-blue-200">Rare</div>
+                <div className="text-sm text-gray-200">Rare</div>
               </div>
               <div className="bg-black/20 rounded-lg p-4 text-center border border-gray-400/20">
-                <div className="text-2xl font-bold text-gray-300 mb-1">
+                <div className="text-2xl font-bold text-gray-400 mb-1">
                   {stats.rarityBreakdown.Common || 0}
                 </div>
                 <div className="text-sm text-gray-200">Common</div>
@@ -325,10 +350,11 @@ export default function Inventory() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
               >
-                <ExpandableCard 
-                  player={item.player} 
+                <ExpandableCard
+                  player={item.player}
                   quantity={item.quantity}
                   firstObtained={item.first_obtained}
+                  onInventoryUpdate={handleInventoryUpdate}
                   onSell={handleSellCard}
                   userCredits={credits}
                 />

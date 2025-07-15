@@ -201,7 +201,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl">
               <div className="text-center text-white">
                 <div className="text-sm font-bold mb-1">Not Enough Credits</div>
-                <div className="text-xs">Need {pack.cost}, have {userCredits}</div>
+                <div className="text-xs">Need {(pack.cost).toLocaleString()} have {(userCredits).toLocaleString()}</div>
               </div>
             </div>
           )}
@@ -417,9 +417,9 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
                   }, {} as Record<string, number>)
                 ).map(([rarity, count]) => (
                   <span key={rarity} className={`font-semibold ${
-                    rarity === 'Super' ? 'text-yellow-400' :
-                    rarity === 'Epic' ? 'text-purple-400' :
-                    rarity === 'Rare' ? 'text-blue-400' :
+                    rarity === 'Super' ? 'text-white' :
+                    rarity === 'Epic' ? 'text-yellow-400' :
+                    rarity === 'Rare' ? 'text-gray-200' :
                     'text-gray-400'
                   }`}>
                     {count}x {rarity}
