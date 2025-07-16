@@ -37,7 +37,7 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
     { name: 'Packs', href: '/', icon: Package },
     { name: 'Collection', href: '/inventory', icon: User },
     // { name: 'Leaderboard', href: '#', icon: Trophy },
-    // { name: 'Settings', href: '#', icon: Settings },
+    // { name: 'Settings', href: '/settings', icon: Settings },
   ];
 
   return (
@@ -170,7 +170,7 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
                       >
                         <div className="py-1">
                           <div className="px-4 py-2 border-b border-white/10">
-                            <p className="text-sm font-medium text-white truncate">{session.user.name}</p>
+                            <p className="text-sm font-medium text-white truncate">{session.user.username}</p>
                             <p className="text-xs text-gray-300 truncate">{session.user.email}</p>
                           </div>
                           <button
@@ -245,11 +245,17 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
                 <div className="px-3 py-2 mt-4">
                   <div className="bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-white/20">
                     <div className="flex items-center space-x-2 mb-2">
-                      <img
-                        src={session.user.image || '/default-avatar.png'}
-                        alt="Profile"
-                        className="w-8 h-8 rounded-full"
-                      />
+                      {session.user?.image ? (
+                        <img
+                          src={session.user.image}
+                          alt="Profile"
+                          className="w-8 h-8 rounded-full bg-gray-700 object-cover"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-600 text-white font-bold text-lg">
+                          {session.user.name?.charAt(0) || "?"}
+                        </div>
+                      )}
                       <div>
                         <p className="text-sm text-white font-medium">{session.user.name}</p>
                         <p className="text-xs text-gray-300 truncate">{session.user.email}</p>

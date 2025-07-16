@@ -7,6 +7,7 @@ import { useSession, signIn } from 'next-auth/react';
 import Link from 'next/link';
 import PackOpening from '@/components/PackOpening';
 import Navbar from '@/components/Navbar';
+import UsernameModal from '@/components/UsernameModal';
 import { BackgroundBeams } from '@/components/BackgroundBeams';
 
 export default function Home() {
@@ -14,12 +15,28 @@ export default function Home() {
   const [credits, setCredits] = useState<number>(0);
   const [lastEarned, setLastEarned] = useState<Date | null>(null);
   const [timeUntilNext, setTimeUntilNext] = useState<number>(0);
+  const [showUsernameModal, setShowUsernameModal] = useState<boolean>(false);
 
   useEffect(() => {
     if (session) {
       fetchCredits();
       const interval = setInterval(updateCredits, 1000);
       return () => clearInterval(interval);
+    }
+  }, [session]);
+
+  // Check if user needs to set username after signing in
+  useEffect(() => {
+    if (session?.user) {
+      // Check if username is a temporary one (contains timestamp or is undefined/null)
+      const username = session.user.username;
+      const needsUsername = !username || 
+                           username.includes('_') && /\d{13}$/.test(username) || // ends with timestamp
+                           username === session.user.email?.split('@')[0]; // default email username
+      
+      if (needsUsername) {
+        setShowUsernameModal(true);
+      }
     }
   }, [session]);
 
@@ -65,6 +82,11 @@ export default function Home() {
     setTimeUntilNext(Math.ceil(timeLeft / 1000));
   };
 
+  const handleUsernameSet = (username: string) => {
+    // Optionally refresh credits or user data after username is set
+    return;
+  };
+
   const features = [
     {
       icon: Star,
@@ -83,16 +105,19 @@ export default function Home() {
     }
   ];
 
-  function handleSignIn(event: React.MouseEvent<HTMLButtonElement>): void {
-    throw new Error('Function not implemented.');
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 relative overflow-hidden">
       <BackgroundBeams className="z-0" />
       
       {/* Header */}
       <Navbar credits={credits} timeUntilNext={timeUntilNext} />
+
+      {/* Username Modal */}
+      <UsernameModal 
+        isOpen={showUsernameModal}
+        onClose={() => setShowUsernameModal(false)}
+        onUsernameSet={handleUsernameSet}
+      />
 
       {/* Hero Section - Instant Load */}
       {!session && (
@@ -164,7 +189,7 @@ export default function Home() {
       )}
 
       {/* Pack Opening Section - Moved Up */}
-      <section className="relative z-0 max-w-6xl mx-auto px-6 pb-16 mt-16">
+      <section className="relative z-10 max-w-6xl mx-auto px-6 pb-16 mt-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -193,7 +218,7 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 pb-16">
+      <section className="relative z-0 max-w-7xl mx-auto px-6 pb-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

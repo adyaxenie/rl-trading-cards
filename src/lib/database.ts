@@ -1,5 +1,253 @@
 import mysql from 'mysql2/promise';
 
+// Updated database configuration with better connection management
+const dbConfig = {
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '1212',
+  database: process.env.DB_NAME || 'rltcg',
+  waitForConnections: true,
+  connectionLimit: 10,        // Increased back to 10
+  queueLimit: 0,
+  // Connection timeout settings
+  acquireTimeout: 60000,      // 60 seconds to get connection
+  timeout: 60000,             // 60 seconds query timeout
+  idleTimeout: 300000,        // 5 minutes idle timeout
+  maxIdle: 5,                 // Maximum idle connections
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 0,
+  // Additional MySQL settings
+  reconnect: true,
+  multipleStatements: false,
+};
+
+let pool: mysql.Pool | null = null;
+
+export async function getDb(): Promise<mysql.Pool> {
+  if (!pool) {
+    pool = mysql.createPool(dbConfig);
+    
+    // Add connection event listeners for debugging
+    pool.on('connection', (connection) => {
+      console.log(`New connection established as id ${connection.threadId}`);
+    });
+    
+    pool.on('acquire', (connection) => {
+      console.log(`Connection ${connection.threadId} acquired`);
+    });
+    
+    pool.on('release', (connection) => {
+      console.log(`Connection ${connection.threadId} released`);
+    });
+  }
+  return pool;
+}
+
+// FIXED: Properly release connections in executeQuery
+export async function executeQuery<T = any>(
+  query: string, 
+  params: any[] = []
+): Promise<[T[], mysql.FieldPacket[]]> {
+  const pool = await getDb();
+  let connection: mysql.PoolConnection | null = null;
+  
+  try {
+    connection = await pool.getConnection();
+    const result = await connection.execute(query, params);
+    return result as [T[], mysql.FieldPacket[]];
+  } catch (error) {
+    console.error('Query execution error:', error);
+    throw error;
+  } finally {
+    // CRITICAL: Always release the connection
+    if (connection) {
+      connection.release();
+    }
+  }
+}
+
+// Alternative: Use pool.execute directly (automatically handles connection release)
+export async function executeQuerySimple<T = any>(
+  query: string, 
+  params: any[] = []
+): Promise<[T[], mysql.FieldPacket[]]> {
+  const pool = await getDb();
+  try {
+    const result = await pool.execute(query, params);
+    return result as [T[], mysql.FieldPacket[]];
+  } catch (error) {
+    console.error('Query execution error:', error);
+    throw error;
+  }
+}
+
+// FIXED: Better transaction handling for sellCard
+export async function sellCard(userId: number, playerId: number, quantity: number): Promise<{
+  success: boolean;
+  creditsEarned: number;
+  newBalance: number;
+  remainingQuantity: number;
+  error?: string;
+}> {
+  const pool = await getDb();
+  let connection: mysql.PoolConnection | null = null;
+  
+  const baseSellValues = {
+    'Super': 250,
+    'Epic': 75,
+    'Rare': 30,
+    'Common': 12
+  };
+
+  function calculateSellValue(rarity: keyof typeof baseSellValues, overallRating: number): number {
+    const baseValue = baseSellValues[rarity];
+    let multiplier = 1.0;
+    
+    if (overallRating >= 95) multiplier = 2.0;
+    else if (overallRating >= 90) multiplier = 1.75;
+    else if (overallRating >= 85) multiplier = 1.5;
+    else if (overallRating >= 80) multiplier = 1.25;
+    else if (overallRating >= 75) multiplier = 1.1;
+    
+    return Math.floor(baseValue * multiplier);
+  }
+
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // Check if user owns this card and has enough quantity
+    const [userCardRows] = await connection.execute(`
+      SELECT uc.quantity, p.rarity, p.name, p.overall_rating
+      FROM user_cards uc
+      JOIN players p ON uc.player_id = p.id
+      WHERE uc.user_id = ? AND uc.player_id = ?
+    `, [userId, playerId]);
+
+    const userCard = (userCardRows as any[])[0];
+    
+    if (!userCard) {
+      await connection.rollback();
+      return { 
+        success: false, 
+        creditsEarned: 0, 
+        newBalance: 0, 
+        remainingQuantity: 0,
+        error: 'Card not found in collection' 
+      };
+    }
+
+    if (userCard.quantity < quantity) {
+      await connection.rollback();
+      return { 
+        success: false, 
+        creditsEarned: 0, 
+        newBalance: 0, 
+        remainingQuantity: userCard.quantity,
+        error: `You only have ${userCard.quantity} copies of this card` 
+      };
+    }
+
+    // Calculate credits to award
+    const sellValue = calculateSellValue(userCard.rarity, userCard.overall_rating);
+    const totalCredits = sellValue * quantity;
+    const remainingQuantity = userCard.quantity - quantity;
+
+    // Update or remove cards from user's collection
+    if (remainingQuantity <= 0) {
+      await connection.execute(`
+        DELETE FROM user_cards 
+        WHERE user_id = ? AND player_id = ?
+      `, [userId, playerId]);
+    } else {
+      await connection.execute(`
+        UPDATE user_cards 
+        SET quantity = ? 
+        WHERE user_id = ? AND player_id = ?
+      `, [remainingQuantity, userId, playerId]);
+    }
+
+    // Get current credits
+    const [creditRows] = await connection.execute('SELECT credits FROM users WHERE id = ?', [userId]);
+    const currentCredits = (creditRows as any[])[0]?.credits || 0;
+    const newCredits = currentCredits + totalCredits;
+    
+    // Update user credits
+    await connection.execute('UPDATE users SET credits = ?, last_credit_earn = NOW() WHERE id = ?', [newCredits, userId]);
+
+    // Record the transaction
+    await connection.execute(`
+      INSERT INTO card_sales (user_id, player_id, quantity_sold, credits_earned, sale_date)
+      VALUES (?, ?, ?, ?, NOW())
+    `, [userId, playerId, quantity, totalCredits]);
+
+    // Commit transaction
+    await connection.commit();
+
+    return {
+      success: true,
+      creditsEarned: totalCredits,
+      newBalance: newCredits,
+      remainingQuantity: Math.max(0, remainingQuantity)
+    };
+
+  } catch (error) {
+    // Rollback on error
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('Error in sellCard:', error);
+    return { 
+      success: false, 
+      creditsEarned: 0, 
+      newBalance: 0, 
+      remainingQuantity: 0,
+      error: 'Failed to sell card' 
+    };
+  } finally {
+    // CRITICAL: Always release the connection
+    if (connection) {
+      connection.release();
+    }
+  }
+}
+
+// Add connection monitoring function
+export async function getConnectionStats(): Promise<{
+  activeConnections: number;
+  freeConnections: number;
+  totalConnections: number;
+}> {
+  const pool = await getDb();
+  const poolStats = (pool as any).pool;
+  
+  return {
+    activeConnections: poolStats._allConnections.length - poolStats._freeConnections.length,
+    freeConnections: poolStats._freeConnections.length,
+    totalConnections: poolStats._allConnections.length
+  };
+}
+
+// Add a health check function
+export async function checkDatabaseHealth(): Promise<boolean> {
+  try {
+    const [result] = await executeQuerySimple('SELECT 1 as health');
+    return result.length > 0;
+  } catch (error) {
+    console.error('Database health check failed:', error);
+    return false;
+  }
+}
+
+// Graceful shutdown
+export async function closeDb(): Promise<void> {
+  if (pool) {
+    await pool.end();
+    pool = null;
+  }
+}
+
+// Export interfaces (unchanged)
 export interface Player {
   id: number;
   name: string;
@@ -37,65 +285,10 @@ export interface UserCard {
   player: Player;
 }
 
-// Updated database configuration with valid MySQL2 options
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '1212',
-  database: process.env.DB_NAME || 'rltcg',
-  waitForConnections: true,
-  connectionLimit: 5,        // Reduced from 10 to 5 for development
-  queueLimit: 0,
-  // Valid MySQL2 pool options only
-  idleTimeout: 300000,       // 5 minutes idle timeout (valid)
-  maxIdle: 5,                // Maximum idle connections (valid)
-  enableKeepAlive: true,     // Keep connections alive
-  keepAliveInitialDelay: 0,  // Initial delay for keep alive
-};
-
-let pool: mysql.Pool | null = null;
-
-export async function getDb(): Promise<mysql.Pool> {
-  if (!pool) {
-    pool = mysql.createPool(dbConfig);
-    
-    // Add connection event listeners for debugging
-    pool.on('connection', (connection) => {
-      console.log(`New connection established as id ${connection.threadId}`);
-    });
-    
-    // Removed unsupported 'error' event listener for promise pool
-  }
-  return pool;
-}
-
-// Add a function to close connections gracefully
-export async function closeDb(): Promise<void> {
-  if (pool) {
-    await pool.end();
-    pool = null;
-  }
-}
-
-// Wrapper function to ensure connections are properly handled
-export async function executeQuery<T = any>(
-  query: string, 
-  params: any[] = []
-): Promise<[T[], mysql.FieldPacket[]]> {
-  const db = await getDb();
-  try {
-    const result = await db.execute(query, params);
-    return result as [T[], mysql.FieldPacket[]];
-  } catch (error) {
-    console.error('Query execution error:', error);
-    throw error;
-  }
-}
-
-// Create new user with first-time bonus (3500 credits for opening loop)
+// Update all other functions to use executeQuerySimple for automatic connection handling
 export async function createUser(name: string, email: string): Promise<User> {
   try {
-    const [result] = await executeQuery(`
+    const [result] = await executeQuerySimple(`
       INSERT INTO users (username, email, credits, last_credit_earn, total_packs_opened)
       VALUES (?, ?, 3500, NOW(), 0)
     `, [name, email]);
@@ -103,7 +296,7 @@ export async function createUser(name: string, email: string): Promise<User> {
     const insertResult = result as any;
     const userId = insertResult.insertId;
     
-    const [newUser] = await executeQuery('SELECT * FROM users WHERE id = ?', [userId]);
+    const [newUser] = await executeQuerySimple('SELECT * FROM users WHERE id = ?', [userId]);
     return (newUser as any[])[0];
   } catch (error) {
     console.error('Error in createUser:', error);
@@ -111,10 +304,9 @@ export async function createUser(name: string, email: string): Promise<User> {
   }
 }
 
-// Updated to work with authenticated users
 export async function getUserCredits(userId: number): Promise<{ credits: number; last_credit_earn: Date }> {
   try {
-    const [rows] = await executeQuery('SELECT credits, last_credit_earn FROM users WHERE id = ?', [userId]);
+    const [rows] = await executeQuerySimple('SELECT credits, last_credit_earn FROM users WHERE id = ?', [userId]);
     const result = rows as any[];
     return result[0] || { credits: 100, last_credit_earn: new Date() };
   } catch (error) {
@@ -125,16 +317,27 @@ export async function getUserCredits(userId: number): Promise<{ credits: number;
 
 export async function updateUserCredits(userId: number, newCredits: number): Promise<void> {
   try {
-    await executeQuery('UPDATE users SET credits = ?, last_credit_earn = NOW() WHERE id = ?', [newCredits, userId]);
+    await executeQuerySimple('UPDATE users SET credits = ?, last_credit_earn = NOW() WHERE id = ?', [newCredits, userId]);
   } catch (error) {
     console.error('Error in updateUserCredits:', error);
     throw error;
   }
 }
 
+export async function getUserByEmail(email: string): Promise<User | null> {
+  try {
+    const [rows] = await executeQuerySimple('SELECT * FROM users WHERE email = ?', [email]);
+    const result = rows as any[];
+    return result[0] || null;
+  } catch (error) {
+    console.error('Error in getUserByEmail:', error);
+    throw error;
+  }
+}
+
 export async function getAllPlayers(): Promise<Player[]> {
   try {
-    const [rows] = await executeQuery('SELECT * FROM players ORDER BY overall_rating DESC');
+    const [rows] = await executeQuerySimple('SELECT * FROM players ORDER BY overall_rating DESC');
     return rows as Player[];
   } catch (error) {
     console.error('Error in getAllPlayers:', error);
@@ -142,10 +345,9 @@ export async function getAllPlayers(): Promise<Player[]> {
   }
 }
 
-// Updated pack rates based on collection size (24 Supers out of 200 total cards)
 export async function getRandomCards(count: number = 5, packType: string = 'standard'): Promise<Player[]> {
   try {
-    const [players] = await executeQuery('SELECT * FROM players');
+    const [players] = await executeQuerySimple('SELECT * FROM players');
     const playersArray = players as Player[];
     
     // Separate players by rarity for better control
@@ -211,7 +413,7 @@ export async function getRandomCards(count: number = 5, packType: string = 'stan
 export async function addCardsToUser(userId: number, cards: Player[]): Promise<void> {
   try {
     for (const card of cards) {
-      await executeQuery(`
+      await executeQuerySimple(`
         INSERT INTO user_cards (user_id, player_id, quantity) 
         VALUES (?, ?, 1) 
         ON DUPLICATE KEY UPDATE quantity = quantity + 1
@@ -225,13 +427,13 @@ export async function addCardsToUser(userId: number, cards: Player[]): Promise<v
 
 export async function recordPackOpening(userId: number, creditsSpent: number, cards: Player[], packType: string = 'Standard'): Promise<void> {
   try {
-    await executeQuery(`
+    await executeQuerySimple(`
       INSERT INTO pack_openings (user_id, pack_type, credits_spent, cards_obtained) 
       VALUES (?, ?, ?, ?)
     `, [userId, packType, creditsSpent, JSON.stringify(cards.map(c => c.id))]);
     
     // Update total packs opened
-    await executeQuery(`
+    await executeQuerySimple(`
       UPDATE users SET total_packs_opened = total_packs_opened + 1 WHERE id = ?
     `, [userId]);
   } catch (error) {
@@ -242,7 +444,7 @@ export async function recordPackOpening(userId: number, creditsSpent: number, ca
 
 export async function getUserInventory(userId: number): Promise<UserCard[]> {
   try {
-    const [rows] = await executeQuery(`
+    const [rows] = await executeQuerySimple(`
       SELECT 
         uc.*,
         p.id as player_id,
@@ -304,7 +506,7 @@ export async function getUserStats(userId: number): Promise<{
 }> {
   try {
     // Get total cards and unique cards
-    const [cardStats] = await executeQuery(`
+    const [cardStats] = await executeQuerySimple(`
       SELECT 
         SUM(quantity) as total_cards,
         COUNT(*) as unique_cards
@@ -313,12 +515,12 @@ export async function getUserStats(userId: number): Promise<{
     `, [userId]);
     
     // Get total packs opened
-    const [userStats] = await executeQuery(`
+    const [userStats] = await executeQuerySimple(`
       SELECT total_packs_opened FROM users WHERE id = ?
     `, [userId]);
     
     // Get rarity breakdown
-    const [rarityStats] = await executeQuery(`
+    const [rarityStats] = await executeQuerySimple(`
       SELECT 
         p.rarity,
         SUM(uc.quantity) as count
@@ -329,11 +531,11 @@ export async function getUserStats(userId: number): Promise<{
     `, [userId]);
     
     // Get Super collection progress
-    const [totalSupers] = await executeQuery(`
+    const [totalSupers] = await executeQuerySimple(`
       SELECT COUNT(*) as total FROM players WHERE rarity = 'Super'
     `);
     
-    const [collectedSupers] = await executeQuery(`
+    const [collectedSupers] = await executeQuerySimple(`
       SELECT COUNT(DISTINCT uc.player_id) as collected
       FROM user_cards uc
       JOIN players p ON uc.player_id = p.id
@@ -371,166 +573,6 @@ export async function getUserStats(userId: number): Promise<{
   }
 }
 
-// Get user by email (for NextAuth)
-export async function getUserByEmail(email: string): Promise<User | null> {
-  try {
-    const [rows] = await executeQuery('SELECT * FROM users WHERE email = ?', [email]);
-    const result = rows as any[];
-    return result[0] || null;
-  } catch (error) {
-    console.error('Error in getUserByEmail:', error);
-    throw error;
-  }
-}
-
-// Enhanced sell card function with proper transaction and connection handling
-export async function sellCard(userId: number, playerId: number, quantity: number): Promise<{
-  success: boolean;
-  creditsEarned: number;
-  newBalance: number;
-  remainingQuantity: number;
-  error?: string;
-}> {
-  const db = await getDb();
-  
-  // Base sell values with OVR multipliers
-  const baseSellValues = {
-    'Super': 250,
-    'Epic': 75,
-    'Rare': 30,
-    'Common': 12
-  };
-
-  function calculateSellValue(rarity: keyof typeof baseSellValues, overallRating: number): number {
-    const baseValue = baseSellValues[rarity];
-    let multiplier = 1.0;
-    
-    if (overallRating >= 95) multiplier = 2.0;
-    else if (overallRating >= 90) multiplier = 1.75;
-    else if (overallRating >= 85) multiplier = 1.5;
-    else if (overallRating >= 80) multiplier = 1.25;
-    else if (overallRating >= 75) multiplier = 1.1;
-    
-    return Math.floor(baseValue * multiplier);
-  }
-
-  const connection = await db.getConnection();
-  
-  try {
-    // Start transaction using the connection directly
-    await connection.query('START TRANSACTION');
-
-    try {
-      // Check if user owns this card and has enough quantity
-      const [userCardRows] = await connection.execute(`
-        SELECT uc.quantity, p.rarity, p.name, p.overall_rating
-        FROM user_cards uc
-        JOIN players p ON uc.player_id = p.id
-        WHERE uc.user_id = ? AND uc.player_id = ?
-      `, [userId, playerId]);
-
-      const userCard = (userCardRows as any[])[0];
-      
-      if (!userCard) {
-        await connection.query('ROLLBACK');
-        return { 
-          success: false, 
-          creditsEarned: 0, 
-          newBalance: 0, 
-          remainingQuantity: 0,
-          error: 'Card not found in collection' 
-        };
-      }
-
-      if (userCard.quantity < quantity) {
-        await connection.query('ROLLBACK');
-        return { 
-          success: false, 
-          creditsEarned: 0, 
-          newBalance: 0, 
-          remainingQuantity: userCard.quantity,
-          error: `You only have ${userCard.quantity} copies of this card` 
-        };
-      }
-
-      // Calculate credits to award
-      const sellValue = calculateSellValue(userCard.rarity, userCard.overall_rating);
-      const totalCredits = sellValue * quantity;
-      const remainingQuantity = userCard.quantity - quantity;
-
-      // Update or remove cards from user's collection
-      if (remainingQuantity <= 0) {
-        await connection.execute(`
-          DELETE FROM user_cards 
-          WHERE user_id = ? AND player_id = ?
-        `, [userId, playerId]);
-      } else {
-        await connection.execute(`
-          UPDATE user_cards 
-          SET quantity = ? 
-          WHERE user_id = ? AND player_id = ?
-        `, [remainingQuantity, userId, playerId]);
-      }
-
-      // Get current credits
-      const [creditRows] = await connection.execute('SELECT credits FROM users WHERE id = ?', [userId]);
-      const currentCredits = (creditRows as any[])[0]?.credits || 0;
-      const newCredits = currentCredits + totalCredits;
-      
-      // Update user credits
-      await connection.execute('UPDATE users SET credits = ?, last_credit_earn = NOW() WHERE id = ?', [newCredits, userId]);
-
-      // Record the transaction (create table if it doesn't exist)
-      await connection.execute(`
-        CREATE TABLE IF NOT EXISTS card_sales (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          user_id INT NOT NULL,
-          player_id INT NOT NULL,
-          quantity_sold INT NOT NULL,
-          credits_earned INT NOT NULL,
-          sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_user_id (user_id),
-          INDEX idx_player_id (player_id)
-        )
-      `);
-
-      await connection.execute(`
-        INSERT INTO card_sales (user_id, player_id, quantity_sold, credits_earned, sale_date)
-        VALUES (?, ?, ?, ?, NOW())
-      `, [userId, playerId, quantity, totalCredits]);
-
-      // Commit transaction
-      await connection.query('COMMIT');
-
-      return {
-        success: true,
-        creditsEarned: totalCredits,
-        newBalance: newCredits,
-        remainingQuantity: Math.max(0, remainingQuantity)
-      };
-
-    } catch (error) {
-      // Rollback on error
-      await connection.query('ROLLBACK');
-      throw error;
-    }
-
-  } catch (error) {
-    console.error('Error in sellCard:', error);
-    return { 
-      success: false, 
-      creditsEarned: 0, 
-      newBalance: 0, 
-      remainingQuantity: 0,
-      error: 'Failed to sell card' 
-    };
-  } finally {
-    // Always release the connection back to the pool
-    connection.release();
-  }
-}
-
-// Get user's selling history
 export async function getUserSaleHistory(userId: number): Promise<{
   totalSold: number;
   totalCreditsEarned: number;
@@ -544,7 +586,7 @@ export async function getUserSaleHistory(userId: number): Promise<{
 }> {
   try {
     // Get total stats
-    const [totalStats] = await executeQuery(`
+    const [totalStats] = await executeQuerySimple(`
       SELECT 
         COALESCE(SUM(quantity_sold), 0) as total_sold,
         COALESCE(SUM(credits_earned), 0) as total_credits_earned
@@ -553,7 +595,7 @@ export async function getUserSaleHistory(userId: number): Promise<{
     `, [userId]);
 
     // Get recent sales (last 20)
-    const [recentSales] = await executeQuery(`
+    const [recentSales] = await executeQuerySimple(`
       SELECT 
         p.name as player_name,
         p.rarity,
