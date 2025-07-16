@@ -15,6 +15,7 @@ interface NavbarProps {
 export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
   const { data: session, status } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const pathname = usePathname();
 
   const formatTime = (seconds: number): string => {
@@ -29,6 +30,7 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
 
   const handleSignOut = () => {
     signOut();
+    setUserDropdownOpen(false);
   };
 
   const navItems = [
@@ -132,17 +134,6 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
                 <span className="font-semibold text-yellow-400 text-sm">{credits?.toLocaleString() || 0}</span>
               </motion.button>
 
-              {/* Timer - Hidden on mobile */}
-              {/* <motion.div 
-                className="hidden sm:flex items-center space-x-2 bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-green-400/20 hover:border-green-400/40 transition-all duration-300"
-                whileHover={{ scale: 1.05 }}
-              >
-                <Timer className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-green-400">
-                  {timeUntilNext > 0 ? formatTime(timeUntilNext) : 'Ready!'}
-                </span>
-              </motion.div> */}
-
               {/* User Authentication */}
               {status === 'loading' ? (
                 <div className="w-8 h-8 bg-white/20 rounded-full animate-pulse" />
@@ -155,23 +146,43 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
                   >
                     <button
                       type="button"
-                      onClick={handleSignOut}
-                      className="relative flex rounded-full bg-white/10 p-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-gray-800 transition-all duration-200 group"
-                      title={`${session.user.name} - Click to sign out`}
+                      onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                      className="relative flex rounded-full bg-white/10 p-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-gray-800 transition-all duration-200"
                     >
-                      <span className="sr-only">Sign out</span>
+                      <span className="sr-only">Open user menu</span>
                       <img
                         src={session.user.image || '/default-avatar.png'}
                         alt="Profile"
                         className="h-8 w-8 rounded-full"
                       />
-                      
-                      {/* Simple tooltip */}
-                      <div className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-black/90 backdrop-blur-sm text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                        {session.user.name} - Click to sign out
-                      </div>
                     </button>
                   </motion.div>
+
+                  {/* Dropdown Menu */}
+                  <AnimatePresence>
+                    {userDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 top-full mt-2 w-48 bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg shadow-lg z-50"
+                      >
+                        <div className="py-1">
+                          <div className="px-4 py-2 border-b border-white/10">
+                            <p className="text-sm font-medium text-white truncate">{session.user.name}</p>
+                            <p className="text-xs text-gray-300 truncate">{session.user.email}</p>
+                          </div>
+                          <button
+                            onClick={handleSignOut}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                          >
+                            Sign out
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               ) : (
                 <motion.button
@@ -188,6 +199,14 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
           </div>
         </div>
       </div>
+
+      {/* Click outside to close dropdown */}
+      {userDropdownOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setUserDropdownOpen(false)}
+        />
+      )}
 
       {/* Mobile menu */}
       <AnimatePresence>
@@ -220,19 +239,6 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
                   </Link>
                 );
               })}
-              
-              {/* Mobile Timer */}
-              {/* <div className="px-3 py-2 mt-4">
-                <div className="flex items-center justify-between bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-green-400/20">
-                  <div className="flex items-center space-x-2">
-                    <Timer className="w-4 h-4 text-green-400" />
-                    <span className="text-sm text-green-400">Next credits</span>
-                  </div>
-                  <span className="text-sm font-semibold text-green-400">
-                    {timeUntilNext > 0 ? formatTime(timeUntilNext) : 'Ready!'}
-                  </span>
-                </div>
-              </div> */}
 
               {/* Mobile Authentication */}
               {session ? (

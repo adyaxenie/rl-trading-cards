@@ -164,7 +164,7 @@ export default function Home() {
       )}
 
       {/* Pack Opening Section - Moved Up */}
-      <section className="relative z-10 max-w-6xl mx-auto px-6 pb-16 mt-16">
+      <section className="relative z-0 max-w-6xl mx-auto px-6 pb-16 mt-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
