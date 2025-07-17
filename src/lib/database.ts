@@ -633,3 +633,287 @@ export async function getUserSaleHistory(userId: number): Promise<{
     };
   }
 }
+
+// Add these to the END of your existing lib/database.ts file
+
+// Showcase interfaces
+export interface ShowcasePlayer {
+  id: number;
+  player: Player;
+  position: number;
+}
+
+export interface UserShowcaseData {
+  user: {
+    id: number;
+    name: string;
+  };
+  showcase: ShowcasePlayer[];
+  stats?: {
+    uniqueCards: number;
+    totalCards: number;
+  };
+}
+
+// Get user's showcase
+export async function getUserShowcase(userId: number): Promise<ShowcasePlayer[]> {
+  try {
+    const [rows] = await executeQuerySimple(`
+      SELECT 
+        us.position,
+        us.player_id,
+        p.id,
+        p.name,
+        p.team,
+        p.region,
+        p.defense,
+        p.offense,
+        p.mechanics,
+        p.challenges,
+        p.game_iq,
+        p.team_sync,
+        p.overall_rating,
+        p.rarity,
+        p.image_url,
+        p.created_at
+      FROM user_showcase us
+      JOIN players p ON us.player_id = p.id
+      WHERE us.user_id = ?
+      ORDER BY us.position ASC
+    `, [userId]);
+
+    const showcaseRows = rows as any[];
+    return showcaseRows.map(row => ({
+      id: row.player_id,
+      player: {
+        id: row.id,
+        name: row.name,
+        team: row.team,
+        region: row.region,
+        defense: row.defense,
+        offense: row.offense,
+        mechanics: row.mechanics,
+        challenges: row.challenges,
+        game_iq: row.game_iq,
+        team_sync: row.team_sync,
+        overall_rating: row.overall_rating,
+        rarity: row.rarity,
+        image_url: row.image_url,
+        created_at: row.created_at,
+      },
+      position: row.position
+    }));
+  } catch (error) {
+    console.error('Error in getUserShowcase:', error);
+    throw error;
+  }
+}
+
+// Update user's showcase
+export async function updateUserShowcase(
+  userId: number, 
+  showcase: { playerId: number; position: number }[]
+): Promise<{ success: boolean; error?: string }> {
+  const pool = await getDb();
+  let connection: mysql.PoolConnection | null = null;
+  
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // Validate that user owns all the players they're trying to showcase
+    if (showcase.length > 0) {
+      const playerIds = showcase.map(item => item.playerId);
+      const placeholders = playerIds.map(() => '?').join(',');
+      
+      const [userCards] = await connection.execute(`
+        SELECT DISTINCT player_id 
+        FROM user_cards 
+        WHERE user_id = ? AND player_id IN (${placeholders})
+      `, [userId, ...playerIds]);
+
+      const ownedPlayerIds = (userCards as any[]).map(row => row.player_id);
+      const unownedPlayers = playerIds.filter(id => !ownedPlayerIds.includes(id));
+      
+      if (unownedPlayers.length > 0) {
+        await connection.rollback();
+        return {
+          success: false,
+          error: 'You can only showcase players you own'
+        };
+      }
+    }
+
+    // Delete existing showcase items for this user
+    await connection.execute(
+      'DELETE FROM user_showcase WHERE user_id = ?',
+      [userId]
+    );
+
+    // Insert new showcase items
+    if (showcase.length > 0) {
+      const insertPromises = showcase.map(item => 
+        connection!.execute(
+          'INSERT INTO user_showcase (user_id, player_id, position) VALUES (?, ?, ?)',
+          [userId, item.playerId, item.position]
+        )
+      );
+      
+      await Promise.all(insertPromises);
+    }
+
+    await connection.commit();
+    return { success: true };
+
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('Error in updateUserShowcase:', error);
+    return {
+      success: false,
+      error: 'Failed to update showcase'
+    };
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+}
+
+// Get public showcase data for a user
+export async function getPublicUserShowcase(userId: number): Promise<UserShowcaseData | null> {
+  try {
+    // Get user info
+    const [userRows] = await executeQuerySimple(
+      'SELECT id, username as name FROM users WHERE id = ?',
+      [userId]
+    );
+
+    const user = (userRows as any[])[0];
+    if (!user) {
+      return null;
+    }
+
+    // Get showcase
+    const showcase = await getUserShowcase(userId);
+
+    // Get basic stats
+    const [statsRows] = await executeQuerySimple(`
+      SELECT 
+        COUNT(DISTINCT player_id) as unique_cards,
+        COALESCE(SUM(quantity), 0) as total_cards
+      FROM user_cards 
+      WHERE user_id = ?
+    `, [userId]);
+
+    const stats = (statsRows as any[])[0];
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name
+      },
+      showcase,
+      stats: {
+        uniqueCards: stats?.unique_cards || 0,
+        totalCards: stats?.total_cards || 0
+      }
+    };
+  } catch (error) {
+    console.error('Error in getPublicUserShowcase:', error);
+    throw error;
+  }
+}
+
+// Get showcase leaderboard
+export async function getShowcaseLeaderboard(
+  limit: number = 10,
+  sortBy: 'recent' | 'rating' = 'recent'
+): Promise<UserShowcaseData[]> {
+  try {
+    let orderByClause = 'us.updated_at DESC';
+    if (sortBy === 'rating') {
+      orderByClause = 'p.overall_rating DESC';
+    }
+
+    const [rows] = await executeQuerySimple(`
+      SELECT DISTINCT
+        u.id as user_id,
+        u.username as user_name,
+        us.position,
+        us.player_id,
+        p.id,
+        p.name,
+        p.team,
+        p.region,
+        p.defense,
+        p.offense,
+        p.mechanics,
+        p.challenges,
+        p.game_iq,
+        p.team_sync,
+        p.overall_rating,
+        p.rarity,
+        p.image_url,
+        p.created_at,
+        us.updated_at
+      FROM user_showcase us
+      JOIN users u ON us.user_id = u.id
+      JOIN players p ON us.player_id = p.id
+      ORDER BY ${orderByClause}
+      LIMIT ?
+    `, [limit * 3]); // Get more rows since we'll group by user
+
+    const showcaseRows = rows as any[];
+    
+    // Group by user
+    const userShowcases: { [userId: number]: UserShowcaseData } = {};
+    
+    for (const row of showcaseRows) {
+      if (!userShowcases[row.user_id]) {
+        userShowcases[row.user_id] = {
+          user: {
+            id: row.user_id,
+            name: row.user_name
+          },
+          showcase: []
+        };
+      }
+      
+      userShowcases[row.user_id].showcase.push({
+        id: row.player_id,
+        player: {
+          id: row.id,
+          name: row.name,
+          team: row.team,
+          region: row.region,
+          defense: row.defense,
+          offense: row.offense,
+          mechanics: row.mechanics,
+          challenges: row.challenges,
+          game_iq: row.game_iq,
+          team_sync: row.team_sync,
+          overall_rating: row.overall_rating,
+          rarity: row.rarity,
+          image_url: row.image_url,
+          created_at: row.created_at,
+        },
+        position: row.position
+      });
+    }
+
+    // Sort showcase positions and limit users
+    const result = Object.values(userShowcases)
+      .slice(0, limit)
+      .map(userShowcase => ({
+        ...userShowcase,
+        showcase: userShowcase.showcase.sort((a, b) => a.position - b.position)
+      }));
+
+    return result;
+  } catch (error) {
+    console.error('Error in getShowcaseLeaderboard:', error);
+    throw error;
+  }
+}

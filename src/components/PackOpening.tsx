@@ -232,7 +232,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
         
         {/* Enhanced floating info panel on hover */}
         <motion.div
-          className={`absolute -bottom-20 left-0 right-0 bg-black/95 backdrop-blur-sm rounded-lg p-4 transition-all duration-300 ${
+          className={`absolute -bottom-20 left-0 right-0 bg-black/95 backdrop-blur-sm rounded-lg p-4 transition-all duration-300 z-40 ${
             !isDisabled ? 'opacity-0 group-hover:opacity-100' : 'opacity-0'
           }`}
           initial={false}
@@ -252,17 +252,17 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
             </div>
             
             {/* Efficiency indicator */}
-            <div className="text-xs text-green-300 mb-2">
+            {/* <div className="text-xs text-green-300 mb-2">
               Efficiency: {pack.efficiency}
             </div>
-            
+             */}
             {!canAfford && session && (
               <div className="text-xs text-red-400 mb-2">
                 Need {pack.cost - userCredits} more credits
               </div>
             )}
             
-            <div className="mt-2 text-xs">
+            {/* <div className="mt-2 text-xs">
               <div className="font-semibold mb-1">Drop Rates:</div>
               <div className="grid grid-cols-2 gap-1">
                 {Object.entries(pack.odds).map(([rarity, rate]) => (
@@ -277,7 +277,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
                   </div>
                 ))}
               </div>
-            </div>
+            </div> */}
           </div>
         </motion.div>
       </motion.div>

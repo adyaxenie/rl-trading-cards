@@ -2,12 +2,39 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Package, Trophy, Star, Filter } from 'lucide-react';
+import { ArrowLeft, Package, Trophy, Star, Filter, Eye, BarChart3, Settings, Crown } from 'lucide-react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { ExpandableCard } from '@/components/ExpandableCard';
 import Navbar from '@/components/Navbar';
 import { BackgroundBeams } from '@/components/BackgroundBeams';
-import { UserCard } from '@/lib/database';
+
+// Update interfaces to match your database structure
+interface Player {
+  id: number;
+  name: string;
+  team: string;
+  region: string;
+  defense: number;
+  offense: number;
+  mechanics: number;
+  challenges: number;
+  game_iq: number;
+  team_sync: number;
+  overall_rating: number;
+  rarity: 'Common' | 'Rare' | 'Epic' | 'Super';
+  image_url: string;
+  created_at: Date;
+}
+
+interface UserCard {
+  id: number;
+  user_id: number;
+  player_id: number;
+  quantity: number;
+  first_obtained: Date;
+  player: Player;
+}
 
 interface InventoryStats {
   totalCards: number;
@@ -16,26 +43,40 @@ interface InventoryStats {
   rarityBreakdown: { [key: string]: number };
 }
 
+interface ShowcasePlayer {
+  id: number;
+  player: Player;
+  position: number; // 1, 2, or 3
+}
+
 export default function Inventory() {
+  const { data: session, status } = useSession();
   const [inventory, setInventory] = useState<UserCard[]>([]);
   const [stats, setStats] = useState<InventoryStats | null>(null);
+  const [showcase, setShowcase] = useState<ShowcasePlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('rating');
   const [credits, setCredits] = useState<number>(100);
   const [timeUntilNext, setTimeUntilNext] = useState<number>(0);
+  const [activeTab, setActiveTab] = useState<'stats' | 'showcase'>('stats');
+  const [isEditingShowcase, setIsEditingShowcase] = useState(false);
+  const [tempShowcase, setTempShowcase] = useState<ShowcasePlayer[]>([]);
 
   useEffect(() => {
-    fetchInventory();
-    fetchCredits();
-  }, []);
+    if (status === 'authenticated' && session?.user?.id) {
+      fetchInventory();
+      fetchCredits();
+      fetchShowcase();
+    }
+  }, [session, status]);
 
   const fetchCredits = async (): Promise<void> => {
     try {
       const response = await fetch('/api/credits');
       const data = await response.json();
-      setCredits(data.credits);
-      // Calculate time until next for navbar
+      // Update credits from session if available, otherwise use API response
+      setCredits(session?.user?.credits || data.credits || 100);
       const lastEarned = new Date(data.lastEarned);
       const now = new Date();
       const nextEarnTime = new Date(lastEarned.getTime() + 60 * 60 * 1000);
@@ -43,6 +84,8 @@ export default function Inventory() {
       setTimeUntilNext(Math.ceil(timeLeft / 1000));
     } catch (error) {
       console.error('Error fetching credits:', error);
+      // Fallback to session credits
+      setCredits(session?.user?.credits || 100);
     }
   };
 
@@ -59,10 +102,39 @@ export default function Inventory() {
     }
   };
 
-  // Add the missing handleInventoryUpdate function
+  const fetchShowcase = async () => {
+    try {
+      const response = await fetch('/api/showcase');
+      const data = await response.json();
+      if (data.success) {
+        setShowcase(data.showcase);
+      }
+    } catch (error) {
+      console.error('Error fetching showcase:', error);
+    }
+  };
+
+  const updateShowcase = async (newShowcase: ShowcasePlayer[]) => {
+    try {
+      const response = await fetch('/api/showcase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ showcase: newShowcase })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setShowcase(newShowcase);
+        setIsEditingShowcase(false);
+        setTempShowcase([]);
+      }
+    } catch (error) {
+      console.error('Error updating showcase:', error);
+    }
+  };
+
   const handleInventoryUpdate = async () => {
     try {
-      // Re-fetch both inventory and credits after a successful sale
       await Promise.all([
         fetchInventory(),
         fetchCredits()
@@ -72,7 +144,6 @@ export default function Inventory() {
     }
   };
 
-  // Handle selling cards - you can keep this as a backup or remove it since the ExpandableCard handles it internally
   const handleSellCard = async (playerId: number, quantity: number): Promise<{ 
     success: boolean; 
     creditsEarned: number; 
@@ -94,19 +165,15 @@ export default function Inventory() {
       const data = await response.json();
       
       if (data.success) {
-        // Update credits in state immediately
         setCredits(data.newBalance);
         
-        // Update inventory by reducing quantity or removing card
         setInventory(prevInventory => {
           return prevInventory.reduce((acc, item) => {
             if (item.player.id === playerId) {
               const newQuantity = item.quantity - quantity;
               if (newQuantity > 0) {
-                // Only keep the item if quantity is still positive
                 acc.push({ ...item, quantity: newQuantity });
               }
-              // If newQuantity <= 0, don't push anything (removes the item)
             } else {
               acc.push(item);
             }
@@ -114,16 +181,13 @@ export default function Inventory() {
           }, [] as UserCard[]);
         });
 
-        // Update stats
         if (stats) {
           setStats(prevStats => {
             if (!prevStats) return null;
             
-            // Find the player to get their rarity
             const soldCard = inventory.find(item => item.player.id === playerId);
             if (soldCard) {
               const rarity = soldCard.player.rarity;
-              const uniqueCardsChange = (item: UserCard) => item.player.id === playerId && item.quantity === quantity ? -1 : 0;
               const uniqueDecrease = inventory.some(item => item.player.id === playerId && item.quantity === quantity) ? 1 : 0;
               
               return {
@@ -162,15 +226,50 @@ export default function Inventory() {
     }
   };
 
+  const handleAddToShowcase = (player: Player, position: number) => {
+    const newShowcase = [...tempShowcase];
+    // Remove player if already in showcase
+    const existingIndex = newShowcase.findIndex(s => s.player.id === player.id);
+    if (existingIndex !== -1) {
+      newShowcase.splice(existingIndex, 1);
+    }
+    
+    // Remove player from the position if occupied
+    const positionIndex = newShowcase.findIndex(s => s.position === position);
+    if (positionIndex !== -1) {
+      newShowcase.splice(positionIndex, 1);
+    }
+    
+    // Add player to position
+    newShowcase.push({ id: player.id, player, position });
+    setTempShowcase(newShowcase);
+  };
+
+  const handleRemoveFromShowcase = (playerId: number) => {
+    setTempShowcase(tempShowcase.filter(s => s.player.id !== playerId));
+  };
+
+  const startEditingShowcase = () => {
+    setIsEditingShowcase(true);
+    setTempShowcase([...showcase]);
+  };
+
+  const cancelEditingShowcase = () => {
+    setIsEditingShowcase(false);
+    setTempShowcase([]);
+  };
+
+  const saveShowcase = () => {
+    updateShowcase(tempShowcase);
+  };
+
   const filteredAndSortedInventory = () => {
     let filtered = inventory;
 
-    // Apply rarity filter
     if (filter !== 'all') {
       filtered = filtered.filter(item => item.player.rarity.toLowerCase() === filter);
     }
 
-    // Apply sorting
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'rating':
@@ -199,22 +298,79 @@ export default function Inventory() {
     }
   };
 
-  if (loading) {
+  const getPositionIcon = (position: number) => {
+    switch (position) {
+      case 1: return '🥇';
+      case 2: return '🥈';
+      case 3: return '🥉';
+      default: return '⭐';
+    }
+  };
+
+  if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white"></div>
       </div>
     );
   }
+
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-white mb-4">Please sign in to view your inventory</h1>
+          <Link href="/auth/signin" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
+            Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 relative overflow-hidden">
       <BackgroundBeams className="z-0" />
       
-      {/* Header */}
       <Navbar credits={credits} timeUntilNext={timeUntilNext} />
 
-      {/* Stats Section */}
-      {stats && (
+      {/* Tab Navigation */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="relative z-10 max-w-7xl mx-auto p-6"
+      >
+        <div className="flex items-center justify-center mb-8">
+          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-2 flex">
+            <button
+              onClick={() => setActiveTab('stats')}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
+                activeTab === 'stats' 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <BarChart3 className="w-5 h-5" />
+              <span>Collection Stats</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('showcase')}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
+                activeTab === 'showcase' 
+                  ? 'bg-purple-600 text-white shadow-lg' 
+                  : 'text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <Crown className="w-5 h-5" />
+              <span>Showcase</span>
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Stats Tab Content */}
+      {activeTab === 'stats' && stats && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -249,11 +405,10 @@ export default function Inventory() {
             </div>
           </div>
 
-          {/* Rarity Breakdown */}
           <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-8">
             <h3 className="text-2xl font-semibold text-white mb-6 text-center">Collection Breakdown</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="bg-black/20 rounded-lg p-4 text-center border border-white/20 shadow-[0_0_16px_4px_rgba(255,255,255,0.3)]">
+              <div className="bg-black/20 rounded-lg p-4 text-center border border-white/20 shadow-[0_0_16px_4px_rgba(255,255,255,0.3)]">
                 <div className="text-2xl font-bold text-white mb-1">
                   {stats.rarityBreakdown.Super || 0}
                 </div>
@@ -282,7 +437,90 @@ export default function Inventory() {
         </motion.div>
       )}
 
-      {/* Filters and Sorting */}
+      {/* Showcase Tab Content */}
+      {activeTab === 'showcase' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="relative z-10 max-w-7xl mx-auto p-6"
+        >
+          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-8 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-semibold text-white">Your Showcase</h3>
+              {!isEditingShowcase ? (
+                <button
+                  onClick={startEditingShowcase}
+                  className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Edit Showcase</span>
+                </button>
+              ) : (
+                <div className="flex space-x-2">
+                  <button
+                    onClick={saveShowcase}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={cancelEditingShowcase}
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[1, 2, 3].map((position) => {
+                const showcasePlayer = (isEditingShowcase ? tempShowcase : showcase).find(s => s.position === position);
+                return (
+                  <div
+                    key={position}
+                    className="bg-black/30 border border-white/20 rounded-xl p-6 text-center min-h-[200px] flex flex-col items-center justify-center"
+                  >
+                    <div className="text-4xl mb-2">{getPositionIcon(position)}</div>
+                    {showcasePlayer ? (
+                      <div className="w-full">
+                        <div className="text-lg font-semibold text-white mb-1">
+                          {showcasePlayer.player.name}
+                        </div>
+                        <div className="text-sm text-gray-300 mb-2">
+                          {showcasePlayer.player.team}
+                        </div>
+                        <div className="text-2xl font-bold text-yellow-400 mb-2">
+                          {showcasePlayer.player.overall_rating}
+                        </div>
+                        <div className={`text-sm ${getRarityColor(showcasePlayer.player.rarity)}`}>
+                          {showcasePlayer.player.rarity}
+                        </div>
+                        {isEditingShowcase && (
+                          <button
+                            onClick={() => handleRemoveFromShowcase(showcasePlayer.player.id)}
+                            className="mt-3 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-gray-500">
+                        <div className="text-sm">Position {position}</div>
+                        <div className="text-xs mt-1">Empty</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Filters and Sorting - Show for both tabs */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -348,6 +586,7 @@ export default function Inventory() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
+                className="relative"
               >
                 <ExpandableCard
                   player={item.player}
@@ -357,6 +596,33 @@ export default function Inventory() {
                   onSell={handleSellCard}
                   userCredits={credits}
                 />
+                
+                {/* Showcase Edit Mode - Add to showcase buttons */}
+                {isEditingShowcase && (
+                  <div className="absolute top-10 right-2 flex flex-col space-y-1">
+                    {[1, 2, 3].map((position) => {
+                      const isInPosition = tempShowcase.some(s => s.position === position && s.player.id === item.player.id);
+                      const isPositionFilled = tempShowcase.some(s => s.position === position);
+                      
+                      return (
+                        <button
+                          key={position}
+                          onClick={() => handleAddToShowcase(item.player, position)}
+                          disabled={isPositionFilled && !isInPosition}
+                          className={`text-xs px-2 py-1 rounded transition-colors ${
+                            isInPosition 
+                              ? 'bg-green-600 text-white'
+                              : isPositionFilled 
+                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                : 'bg-purple-600 hover:bg-purple-700 text-white'
+                          }`}
+                        >
+                          {getPositionIcon(position)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </motion.div>
             ))}
           </div>
