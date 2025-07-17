@@ -341,8 +341,8 @@ export default function Inventory() {
         transition={{ delay: 0.1 }}
         className="relative z-10 max-w-7xl mx-auto p-6"
       >
-        <div className="flex items-center justify-center mb-8">
-          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-2 flex">
+        <div className="flex items-center justify-center">
+          <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-2 flex gap-2">
             <button
               onClick={() => setActiveTab('stats')}
               className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
