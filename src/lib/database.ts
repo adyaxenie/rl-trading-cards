@@ -634,8 +634,6 @@ export async function getUserSaleHistory(userId: number): Promise<{
   }
 }
 
-// Add these to the END of your existing lib/database.ts file
-
 // Showcase interfaces
 export interface ShowcasePlayer {
   id: number;
@@ -653,60 +651,6 @@ export interface UserShowcaseData {
     uniqueCards: number;
     totalCards: number;
   };
-}
-
-// Get user's showcase
-export async function getUserShowcase(userId: number): Promise<ShowcasePlayer[]> {
-  try {
-    const [rows] = await executeQuerySimple(`
-      SELECT 
-        us.position,
-        us.player_id,
-        p.id,
-        p.name,
-        p.team,
-        p.region,
-        p.defense,
-        p.offense,
-        p.mechanics,
-        p.challenges,
-        p.game_iq,
-        p.team_sync,
-        p.overall_rating,
-        p.rarity,
-        p.image_url,
-        p.created_at
-      FROM user_showcase us
-      JOIN players p ON us.player_id = p.id
-      WHERE us.user_id = ?
-      ORDER BY us.position ASC
-    `, [userId]);
-
-    const showcaseRows = rows as any[];
-    return showcaseRows.map(row => ({
-      id: row.player_id,
-      player: {
-        id: row.id,
-        name: row.name,
-        team: row.team,
-        region: row.region,
-        defense: row.defense,
-        offense: row.offense,
-        mechanics: row.mechanics,
-        challenges: row.challenges,
-        game_iq: row.game_iq,
-        team_sync: row.team_sync,
-        overall_rating: row.overall_rating,
-        rarity: row.rarity,
-        image_url: row.image_url,
-        created_at: row.created_at,
-      },
-      position: row.position
-    }));
-  } catch (error) {
-    console.error('Error in getUserShowcase:', error);
-    throw error;
-  }
 }
 
 // Update user's showcase
@@ -780,14 +724,99 @@ export async function updateUserShowcase(
     }
   }
 }
+// Add these to the END of your existing lib/database.ts file
+
+// Showcase interfaces
+export interface ShowcasePlayer {
+  id: number;
+  player: Player;
+  position: number;
+}
+
+export interface UserShowcaseData {
+  user: {
+    id: number;
+    name: string;
+  };
+  showcase: ShowcasePlayer[];
+  stats?: {
+    uniqueCards: number;
+    totalCards: number;
+  };
+}
+
+// Get user's showcase
+export async function getUserShowcase(userId: number): Promise<ShowcasePlayer[]> {
+  try {
+    // Ensure userId is a safe integer
+    const userIdInt = parseInt(userId.toString());
+    if (isNaN(userIdInt)) {
+      throw new Error('Invalid user ID');
+    }
+    
+    const [rows] = await executeQuerySimple(`
+      SELECT 
+        us.position,
+        us.player_id,
+        p.id,
+        p.name,
+        p.team,
+        p.region,
+        p.defense,
+        p.offense,
+        p.mechanics,
+        p.challenges,
+        p.game_iq,
+        p.team_sync,
+        p.overall_rating,
+        p.rarity,
+        p.image_url,
+        p.created_at
+      FROM user_showcase us
+      JOIN players p ON us.player_id = p.id
+      WHERE us.user_id = ${userIdInt}
+      ORDER BY us.position ASC
+    `);
+
+    const showcaseRows = rows as any[];
+    return showcaseRows.map(row => ({
+      id: row.player_id,
+      player: {
+        id: row.id,
+        name: row.name,
+        team: row.team,
+        region: row.region,
+        defense: row.defense,
+        offense: row.offense,
+        mechanics: row.mechanics,
+        challenges: row.challenges,
+        game_iq: row.game_iq,
+        team_sync: row.team_sync,
+        overall_rating: row.overall_rating,
+        rarity: row.rarity,
+        image_url: row.image_url,
+        created_at: row.created_at,
+      },
+      position: row.position
+    }));
+  } catch (error) {
+    console.error('Error in getUserShowcase:', error);
+    throw error;
+  }
+}
 
 // Get public showcase data for a user
 export async function getPublicUserShowcase(userId: number): Promise<UserShowcaseData | null> {
   try {
+    // Ensure userId is a safe integer
+    const userIdInt = parseInt(userId.toString());
+    if (isNaN(userIdInt)) {
+      return null;
+    }
+    
     // Get user info
     const [userRows] = await executeQuerySimple(
-      'SELECT id, username as name FROM users WHERE id = ?',
-      [userId]
+      `SELECT id, username as name FROM users WHERE id = ${userIdInt}`
     );
 
     const user = (userRows as any[])[0];
@@ -796,7 +825,7 @@ export async function getPublicUserShowcase(userId: number): Promise<UserShowcas
     }
 
     // Get showcase
-    const showcase = await getUserShowcase(userId);
+    const showcase = await getUserShowcase(userIdInt);
 
     // Get basic stats
     const [statsRows] = await executeQuerySimple(`
@@ -804,8 +833,8 @@ export async function getPublicUserShowcase(userId: number): Promise<UserShowcas
         COUNT(DISTINCT player_id) as unique_cards,
         COALESCE(SUM(quantity), 0) as total_cards
       FROM user_cards 
-      WHERE user_id = ?
-    `, [userId]);
+      WHERE user_id = ${userIdInt}
+    `);
 
     const stats = (statsRows as any[])[0];
 
@@ -917,3 +946,260 @@ export async function getShowcaseLeaderboard(
     throw error;
   }
 }
+// Leaderboard interfaces
+export interface LeaderboardUser {
+  user: {
+    id: number;
+    name: string;
+  };
+  totalCards: number;
+  uniqueCards: number;
+  totalPacks: number;
+  averageRating: number;
+  superCards: number;
+}
+
+// Get top collectors leaderboard
+export async function getTopCollectors(limit: number = 10): Promise<LeaderboardUser[]> {
+  try {
+    // Ensure limit is a safe integer between 1 and 50
+    const limitInt = Math.max(1, Math.min(parseInt(limit.toString()) || 10, 50));
+    
+    // Use string interpolation for LIMIT since it's validated
+    const [rows] = await executeQuerySimple(`
+      SELECT 
+        u.id,
+        u.username as name,
+        COALESCE(SUM(uc.quantity), 0) as total_cards,
+        COUNT(DISTINCT uc.player_id) as unique_cards,
+        u.total_packs_opened,
+        COALESCE(AVG(p.overall_rating), 0) as average_rating,
+        COALESCE(SUM(CASE WHEN p.rarity = 'Super' THEN uc.quantity ELSE 0 END), 0) as super_cards
+      FROM users u
+      LEFT JOIN user_cards uc ON u.id = uc.user_id
+      LEFT JOIN players p ON uc.player_id = p.id
+      GROUP BY u.id, u.username, u.total_packs_opened
+      HAVING total_cards > 0
+      ORDER BY total_cards DESC, unique_cards DESC
+      LIMIT ${limitInt}
+    `);
+
+    return (rows as any[]).map(row => ({
+      user: {
+        id: row.id,
+        name: row.name
+      },
+      totalCards: row.total_cards,
+      uniqueCards: row.unique_cards,
+      totalPacks: row.total_packs_opened || 0,
+      averageRating: parseFloat(row.average_rating) || 0,
+      superCards: row.super_cards
+    }));
+  } catch (error) {
+    console.error('Error in getTopCollectors:', error);
+    throw error;
+  }
+}
+
+// Get top pack openers leaderboard
+export async function getTopPackOpeners(limit: number = 10): Promise<LeaderboardUser[]> {
+  try {
+    // Ensure limit is a safe integer between 1 and 50
+    const limitInt = Math.max(1, Math.min(parseInt(limit.toString()) || 10, 50));
+    
+    // Use string interpolation for LIMIT since it's validated
+    const [rows] = await executeQuerySimple(`
+      SELECT 
+        u.id,
+        u.username as name,
+        u.total_packs_opened,
+        COALESCE(SUM(uc.quantity), 0) as total_cards,
+        COUNT(DISTINCT uc.player_id) as unique_cards,
+        COALESCE(SUM(CASE WHEN p.rarity = 'Super' THEN uc.quantity ELSE 0 END), 0) as super_cards
+      FROM users u
+      LEFT JOIN user_cards uc ON u.id = uc.user_id
+      LEFT JOIN players p ON uc.player_id = p.id
+      WHERE u.total_packs_opened > 0
+      GROUP BY u.id, u.username, u.total_packs_opened
+      ORDER BY u.total_packs_opened DESC, total_cards DESC
+      LIMIT ${limitInt}
+    `);
+
+    return (rows as any[]).map(row => ({
+      user: {
+        id: row.id,
+        name: row.name
+      },
+      totalPacks: row.total_packs_opened,
+      totalCards: row.total_cards,
+      uniqueCards: row.unique_cards,
+      superCards: row.super_cards,
+      averageRating: 0 // Not needed for this leaderboard
+    }));
+  } catch (error) {
+    console.error('Error in getTopPackOpeners:', error);
+    throw error;
+  }
+}
+
+// Get super card collectors leaderboard
+export async function getSuperCollectors(limit: number = 10): Promise<LeaderboardUser[]> {
+  try {
+    // Ensure limit is a safe integer between 1 and 50
+    const limitInt = Math.max(1, Math.min(parseInt(limit.toString()) || 10, 50));
+    
+    // Use string interpolation for LIMIT since it's validated
+    const [rows] = await executeQuerySimple(`
+      SELECT 
+        u.id,
+        u.username as name,
+        COALESCE(SUM(CASE WHEN p.rarity = 'Super' THEN uc.quantity ELSE 0 END), 0) as super_cards,
+        COALESCE(SUM(uc.quantity), 0) as total_cards,
+        COUNT(DISTINCT uc.player_id) as unique_cards,
+        u.total_packs_opened
+      FROM users u
+      LEFT JOIN user_cards uc ON u.id = uc.user_id
+      LEFT JOIN players p ON uc.player_id = p.id
+      GROUP BY u.id, u.username, u.total_packs_opened
+      HAVING super_cards > 0
+      ORDER BY super_cards DESC, total_cards DESC
+      LIMIT ${limitInt}
+    `);
+
+    return (rows as any[]).map(row => ({
+      user: {
+        id: row.id,
+        name: row.name
+      },
+      superCards: row.super_cards,
+      totalCards: row.total_cards,
+      uniqueCards: row.unique_cards,
+      totalPacks: row.total_packs_opened || 0,
+      averageRating: 0 // Not needed for this leaderboard
+    }));
+  } catch (error) {
+    console.error('Error in getSuperCollectors:', error);
+    throw error;
+  }
+}
+
+// Get user's rank in a specific leaderboard
+export async function getUserRank(userId: number, leaderboardType: 'collectors' | 'packs' | 'supers'): Promise<number | null> {
+  try {
+    let query = '';
+    
+    switch (leaderboardType) {
+      case 'collectors':
+        query = `
+          SELECT user_rank FROM (
+            SELECT 
+              u.id,
+              ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(uc.quantity), 0) DESC, COUNT(DISTINCT uc.player_id) DESC) as user_rank
+            FROM users u
+            LEFT JOIN user_cards uc ON u.id = uc.user_id
+            GROUP BY u.id
+            HAVING COALESCE(SUM(uc.quantity), 0) > 0
+          ) ranked_users
+          WHERE id = ?
+        `;
+        break;
+        
+      case 'packs':
+        query = `
+          SELECT user_rank FROM (
+            SELECT 
+              id,
+              ROW_NUMBER() OVER (ORDER BY total_packs_opened DESC) as user_rank
+            FROM users
+            WHERE total_packs_opened > 0
+          ) ranked_users
+          WHERE id = ?
+        `;
+        break;
+        
+      case 'supers':
+        query = `
+          SELECT user_rank FROM (
+            SELECT 
+              u.id,
+              ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(CASE WHEN p.rarity = 'Super' THEN uc.quantity ELSE 0 END), 0) DESC) as user_rank
+            FROM users u
+            LEFT JOIN user_cards uc ON u.id = uc.user_id
+            LEFT JOIN players p ON uc.player_id = p.id
+            GROUP BY u.id
+            HAVING COALESCE(SUM(CASE WHEN p.rarity = 'Super' THEN uc.quantity ELSE 0 END), 0) > 0
+          ) ranked_users
+          WHERE id = ?
+        `;
+        break;
+        
+      default:
+        return null;
+    }
+
+    const [rows] = await executeQuerySimple(query, [userId]);
+    const result = rows as any[];
+    return result[0]?.user_rank || null;
+  } catch (error) {
+    console.error('Error in getUserRank:', error);
+    return null;
+  }
+}
+
+// Get comprehensive leaderboard data for a user (their stats across all categories)
+export async function getUserLeaderboardStats(userId: number): Promise<{
+  collectorRank: number | null;
+  packRank: number | null;
+  superRank: number | null;
+  stats: {
+    totalCards: number;
+    uniqueCards: number;
+    totalPacks: number;
+    superCards: number;
+    averageRating: number;
+  };
+} | null> {
+  try {
+    // Get user's stats
+    const [statsRows] = await executeQuerySimple(`
+      SELECT 
+        u.total_packs_opened,
+        COALESCE(SUM(uc.quantity), 0) as total_cards,
+        COUNT(DISTINCT uc.player_id) as unique_cards,
+        COALESCE(AVG(p.overall_rating), 0) as average_rating,
+        COALESCE(SUM(CASE WHEN p.rarity = 'Super' THEN uc.quantity ELSE 0 END), 0) as super_cards
+      FROM users u
+      LEFT JOIN user_cards uc ON u.id = uc.user_id
+      LEFT JOIN players p ON uc.player_id = p.id
+      WHERE u.id = ?
+      GROUP BY u.id, u.total_packs_opened
+    `, [userId]);
+
+    const stats = (statsRows as any[])[0];
+    if (!stats) return null;
+
+    // Get ranks in parallel
+    const [collectorRank, packRank, superRank] = await Promise.all([
+      getUserRank(userId, 'collectors'),
+      getUserRank(userId, 'packs'),
+      getUserRank(userId, 'supers')
+    ]);
+
+    return {
+      collectorRank,
+      packRank,
+      superRank,
+      stats: {
+        totalCards: stats.total_cards,
+        uniqueCards: stats.unique_cards,
+        totalPacks: stats.total_packs_opened || 0,
+        superCards: stats.super_cards,
+        averageRating: parseFloat(stats.average_rating) || 0
+      }
+    };
+  } catch (error) {
+    console.error('Error in getUserLeaderboardStats:', error);
+    return null;
+  }
+}
+

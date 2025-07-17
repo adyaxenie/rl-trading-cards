@@ -36,7 +36,7 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
   const navItems = [
     { name: 'Packs', href: '/', icon: Package },
     { name: 'Collection', href: '/inventory', icon: User },
-    // { name: 'Leaderboard', href: '#', icon: Trophy },
+    { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
     // { name: 'Settings', href: '/settings', icon: Settings },
   ];
 

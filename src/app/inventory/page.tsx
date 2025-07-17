@@ -454,7 +454,7 @@ export default function Inventory() {
                   className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
                 >
                   <Settings className="w-4 h-4" />
-                  <span>Edit Showcase</span>
+                  <span>Edit</span>
                 </button>
               ) : (
                 <div className="flex space-x-2">
