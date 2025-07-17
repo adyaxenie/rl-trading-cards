@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -356,38 +355,74 @@ export default function Leaderboard() {
               )}
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {leaderboardData.topCollectors.map((user, index) => (
-                <motion.div
-                  key={user.user.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={`bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:border-blue-400/30 transition-all duration-300 ${
-                    session?.user?.id === user.user.id ? 'ring-2 ring-blue-500/50' : ''
-                  }`}
+            {leaderboardData.topCollectors.length === 0 ? (
+              <div className="text-center py-12">
+                <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-white mb-2">No Collectors Yet</h3>
+                <p className="text-gray-400 mb-6">Start collecting to appear on the leaderboard!</p>
+                <Link 
+                  href="/" 
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
                 >
-                  <div className="flex items-center justify-center mb-4">
-                    {getRankIcon(index + 1)}
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-2">{user.user.name}</h3>
-                  <div className="space-y-2 text-sm text-gray-300">
-                    <div className="flex justify-between">
-                      <span>Total Cards:</span>
-                      <span className="text-blue-400 font-semibold">{user.totalCards}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Unique:</span>
-                      <span className="text-purple-400 font-semibold">{user.uniqueCards}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Avg Rating:</span>
-                      <span className="text-yellow-400 font-semibold">{user.averageRating?.toFixed(1) || 'N/A'}</span>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                  Open Packs
+                </Link>
+              </div>
+            ) : (
+              <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-blue-600/20 border-b border-blue-400/30">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white">Rank</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white">Collector</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Total Cards</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Unique Cards</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Packs Opened</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Super Cards</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Avg Rating</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leaderboardData.topCollectors.map((user, index) => (
+                        <motion.tr
+                          key={user.user.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className={`border-b border-white/10 hover:bg-blue-600/10 transition-colors ${
+                            session?.user?.id === user.user.id ? 'ring-2 ring-blue-500/50' : ''
+                          }`}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center">
+                              {getRankIcon(index + 1)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-semibold text-white">{user.user.name}</div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-blue-400 font-semibold">{user.totalCards.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-purple-400 font-semibold">{user.uniqueCards.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-green-400 font-semibold">{user.totalPacks.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-yellow-400 font-semibold">{user.superCards.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-orange-400 font-semibold">{user.averageRating?.toFixed(1) || 'N/A'}</span>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -404,40 +439,76 @@ export default function Leaderboard() {
               )}
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {leaderboardData.topPackOpeners.map((user, index) => (
-                <motion.div
-                  key={user.user.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={`bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:border-green-400/30 transition-all duration-300 ${
-                    session?.user?.id === user.user.id ? 'ring-2 ring-green-500/50' : ''
-                  }`}
+            {leaderboardData.topPackOpeners.length === 0 ? (
+              <div className="text-center py-12">
+                <TrendingUp className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-white mb-2">No Pack Openers Yet</h3>
+                <p className="text-gray-400 mb-6">Open some packs to appear on the leaderboard!</p>
+                <Link 
+                  href="/" 
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
                 >
-                  <div className="flex items-center justify-center mb-4">
-                    {getRankIcon(index + 1)}
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-2">{user.user.name}</h3>
-                  <div className="space-y-2 text-sm text-gray-300">
-                    <div className="flex justify-between">
-                      <span>Packs Opened:</span>
-                      <span className="text-green-400 font-semibold">{user.totalPacks}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Total Cards:</span>
-                      <span className="text-blue-400 font-semibold">{user.totalCards}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Cards/Pack:</span>
-                      <span className="text-yellow-400 font-semibold">
-                        {user.totalPacks > 0 ? (user.totalCards / user.totalPacks).toFixed(1) : '0'}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                  Open Packs
+                </Link>
+              </div>
+            ) : (
+              <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-green-600/20 border-b border-green-400/30">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white">Rank</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white">Pack Opener</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Packs Opened</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Total Cards</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Unique Cards</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Super Cards</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Cards/Pack</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leaderboardData.topPackOpeners.map((user, index) => (
+                        <motion.tr
+                          key={user.user.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className={`border-b border-white/10 hover:bg-green-600/10 transition-colors ${
+                            session?.user?.id === user.user.id ? 'ring-2 ring-green-500/50' : ''
+                          }`}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center">
+                              {getRankIcon(index + 1)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-semibold text-white">{user.user.name}</div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-green-400 font-semibold">{user.totalPacks.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-blue-400 font-semibold">{user.totalCards.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-purple-400 font-semibold">{user.uniqueCards.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-yellow-400 font-semibold">{user.superCards.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-orange-400 font-semibold">
+                              {user.totalPacks > 0 ? (user.totalCards / user.totalPacks).toFixed(1) : '0'}
+                            </span>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -454,40 +525,76 @@ export default function Leaderboard() {
               )}
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {leaderboardData.superCollectors.map((user, index) => (
-                <motion.div
-                  key={user.user.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={`bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:border-yellow-400/30 transition-all duration-300 ${
-                    session?.user?.id === user.user.id ? 'ring-2 ring-yellow-500/50' : ''
-                  }`}
+            {leaderboardData.superCollectors.length === 0 ? (
+              <div className="text-center py-12">
+                <Sparkles className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-white mb-2">No Super Hunters Yet</h3>
+                <p className="text-gray-400 mb-6">Collect Super cards to appear on the leaderboard!</p>
+                <Link 
+                  href="/" 
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
                 >
-                  <div className="flex items-center justify-center mb-4">
-                    {getRankIcon(index + 1)}
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-2">{user.user.name}</h3>
-                  <div className="space-y-2 text-sm text-gray-300">
-                    <div className="flex justify-between">
-                      <span>Super Cards:</span>
-                      <span className="text-yellow-400 font-semibold">{user.superCards}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Total Cards:</span>
-                      <span className="text-blue-400 font-semibold">{user.totalCards}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Super %:</span>
-                      <span className="text-purple-400 font-semibold">
-                        {user.totalCards > 0 ? ((user.superCards / user.totalCards) * 100).toFixed(1) : '0'}%
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                  Hunt for Supers
+                </Link>
+              </div>
+            ) : (
+              <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-yellow-600/20 border-b border-yellow-400/30">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white">Rank</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white">Super Hunter</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Super Cards</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Total Cards</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Unique Cards</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Packs Opened</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Super %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leaderboardData.superCollectors.map((user, index) => (
+                        <motion.tr
+                          key={user.user.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className={`border-b border-white/10 hover:bg-yellow-600/10 transition-colors ${
+                            session?.user?.id === user.user.id ? 'ring-2 ring-yellow-500/50' : ''
+                          }`}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center">
+                              {getRankIcon(index + 1)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-semibold text-white">{user.user.name}</div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-yellow-400 font-semibold">{user.superCards.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-blue-400 font-semibold">{user.totalCards.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-purple-400 font-semibold">{user.uniqueCards.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-green-400 font-semibold">{user.totalPacks.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-orange-400 font-semibold">
+                              {user.totalCards > 0 ? ((user.superCards / user.totalCards) * 100).toFixed(1) : '0'}%
+                            </span>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
