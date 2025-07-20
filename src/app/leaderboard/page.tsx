@@ -64,6 +64,35 @@ interface LeaderboardData {
   superCollectors: UserStats[];
 }
 
+// Rarity styling constants
+const rarityColors = {
+  'Super': 'from-black via-gray-900 to-black',
+  'Epic': 'from-yellow-200 via-amber-300 to-yellow-500',
+  'Rare': 'from-slate-200 via-gray-300 to-slate-400',
+  'Common': 'from-gray-500 via-gray-400 to-gray-500',
+};
+
+const rarityGlow = {
+  'Super': 'shadow-glow-super',
+  'Epic': 'shadow-glow-epic',
+  'Rare': 'shadow-glow-rare',
+  'Common': 'shadow-glow-common',
+};
+
+const rarityBorder = {
+  'Super': 'border-white',
+  'Epic': 'border-yellow-400',
+  'Rare': 'border-slate-300',
+  'Common': 'border-gray-400',
+};
+
+const rarityBadgeStyle = {
+  'Super': 'bg-white text-black font-bold',
+  'Epic': 'bg-yellow-600 text-black font-bold',
+  'Rare': 'bg-slate-600 text-white font-bold',
+  'Common': 'bg-gray-500 text-white font-medium',
+};
+
 export default function Leaderboard() {
   const { data: session } = useSession();
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardData>({
@@ -273,69 +302,129 @@ export default function Leaderboard() {
                 </Link>
               </div>
             ) : (
-              leaderboardData.showcases.map((userShowcase, index) => (
-              <motion.div
-                key={userShowcase.user.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-purple-400/30 transition-all duration-300"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center justify-center w-12 h-12 bg-purple-600/20 rounded-full border border-purple-400/30">
-                      {getRankIcon(index + 1)}
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-white">{userShowcase.user.name}</h3>
-                      {userShowcase.stats && (
-                        <div className="flex items-center space-x-4 text-sm text-gray-300">
-                          <span>{userShowcase.stats.totalCards} total cards</span>
-                          <span>{userShowcase.stats.uniqueCards} unique</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <Link
-                    href={`/showcase/${userShowcase.user.id}`}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-                  >
-                    View Full
-                  </Link>
+              <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-purple-600/20 border-b border-purple-400/30">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white">Rank</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white">Showcase Owner</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Avg Rating</th>
+                        <th className="px-6 py-4 text-center text-sm font-semibold text-white">🥇 Position 1</th>
+                        <th className="px-6 py-4 text-center text-sm font-semibold text-white">🥈 Position 2</th>
+                        <th className="px-6 py-4 text-center text-sm font-semibold text-white">🥉 Position 3</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Collection Stats</th>
+                        <th className="px-6 py-4 text-center text-sm font-semibold text-white">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leaderboardData.showcases
+                        .map((userShowcase) => {
+                          const showcaseCards = userShowcase.showcase.filter(s => s.player);
+                          const avgRating = showcaseCards.length > 0 
+                            ? showcaseCards.reduce((sum, s) => sum + s.player.overall_rating, 0) / showcaseCards.length 
+                            : 0;
+                          return { ...userShowcase, calculatedAvgRating: avgRating };
+                        })
+                        .sort((a, b) => b.calculatedAvgRating - a.calculatedAvgRating)
+                        .map((userShowcase, index) => {
+                        const showcaseCards = userShowcase.showcase.filter(s => s.player);
+                        const avgRating = userShowcase.calculatedAvgRating;
+                        
+                        return (
+                          <motion.tr
+                            key={userShowcase.user.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="border-b border-white/10 hover:bg-purple-600/10 transition-colors"
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center">
+                                {getRankIcon(index + 1)}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-white text-lg">{userShowcase.user.name}</div>
+                              {userShowcase.stats && (
+                                <div className="text-sm text-gray-300">
+                                  {userShowcase.stats.totalCards} total • {userShowcase.stats.uniqueCards} unique
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="text-2xl text-orange-400 font-bold">
+                                {avgRating > 0 ? avgRating.toFixed(1) : 'N/A'}
+                              </div>
+                            </td>
+                            {[1, 2, 3].map((position) => {
+                              const player = userShowcase.showcase.find(s => s.position === position);
+                              return (
+                                <td key={position} className="px-4 py-2 text-center group">
+                                  <div className="h-[60px] flex items-center justify-center">
+                                    {player ? (
+                                      <div className="relative">
+                                        {/* Simplified view - just name with rarity color */}
+                                        <div className={`bg-gradient-to-br ${rarityColors[player.player.rarity]} ${rarityBorder[player.player.rarity]} border-2 rounded-lg p-2 w-[100px] h-[30px] flex items-center justify-center transition-all duration-300 group-hover:opacity-0 ${rarityGlow[player.player.rarity]}`}>
+                                          <div className="text-xs font-semibold text-white truncate">
+                                            {player.player.name}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Detailed view on hover */}
+                                        <div className={`absolute inset-0 bg-gradient-to-br ${rarityColors[player.player.rarity]} ${rarityBorder[player.player.rarity]} border-2 rounded-lg p-3 w-[120px] h-[130px] flex flex-col justify-between opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110 z-10 ${rarityGlow[player.player.rarity]}`}>
+                                          <div className="flex-1 flex flex-col justify-center">
+                                            <div className="text-xs font-semibold text-white mb-1 truncate">
+                                              {player.player.name}
+                                            </div>
+                                            <div className="text-xs text-white/80 mb-1 truncate">
+                                              {player.player.team}
+                                            </div>
+                                            <div className="text-lg font-bold text-white mb-1">
+                                              {player.player.overall_rating}
+                                            </div>
+                                          </div>
+                                          <div className={`px-2 py-1 rounded text-xs ${rarityBadgeStyle[player.player.rarity]}`}>
+                                            {player.player.rarity}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="bg-gray-600/20 border-2 border-gray-600 rounded-lg p-2 w-[100px] h-[30px] flex items-center justify-center">
+                                        <div className="text-xs text-gray-500">Empty</div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                            <td className="px-6 py-4 text-right">
+                              {userShowcase.stats && (
+                                <div className="space-y-1">
+                                  <div className="text-sm text-blue-400 font-semibold">
+                                    {userShowcase.stats.totalCards.toLocaleString()} cards
+                                  </div>
+                                  <div className="text-sm text-purple-400 font-semibold">
+                                    {userShowcase.stats.uniqueCards.toLocaleString()} unique
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <Link
+                                href={`/showcase/${userShowcase.user.id}`}
+                                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                              >
+                                View Full
+                              </Link>
+                            </td>
+                          </motion.tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-                
-                <div className="grid grid-cols-3 gap-4">
-                  {[1, 2, 3].map((position) => {
-                    const player = userShowcase.showcase.find(s => s.position === position);
-                    return (
-                      <div
-                        key={position}
-                        className={`border rounded-lg p-4 text-center min-h-[140px] flex flex-col items-center justify-center transition-all duration-300 ${
-                          player ? getRarityColor(player.player.rarity) : 'border-gray-600 bg-gray-600/10'
-                        }`}
-                      >
-                        <div className="text-2xl mb-2">{getPositionIcon(position)}</div>
-                        {player ? (
-                          <>
-                            <div className="text-sm font-semibold text-white mb-1">
-                              {player.player.name}
-                            </div>
-                            <div className="text-xs text-gray-300 mb-1">
-                              {player.player.team}
-                            </div>
-                            <div className="text-lg font-bold text-yellow-400">
-                              {player.player.overall_rating}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-xs text-gray-500">Empty</div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            ))
+              </div>
             )}
           </div>
         )}
