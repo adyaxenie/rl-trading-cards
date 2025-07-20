@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Coins, Timer, User, Menu, X, Package, Trophy, Settings, CheckCircle, Clock, Gift, Target, RefreshCw } from 'lucide-react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useCredits } from '@/contexts/CreditsContext';
 
@@ -293,7 +294,6 @@ export default function Navbar() {
                 </motion.h1>
               </Link>
             </div>
-            
             {/* Desktop Navigation */}
             <div className="hidden sm:ml-8 sm:block">
               <div className="flex space-x-4">

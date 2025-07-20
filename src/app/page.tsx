@@ -9,6 +9,7 @@ import PackOpening from '@/components/PackOpening';
 import Navbar from '@/components/Navbar';
 import UsernameModal from '@/components/UsernameModal';
 import { BackgroundBeams } from '@/components/BackgroundBeams';
+import Footer from '@/components/Footer';
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -106,7 +107,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 relative overflow-hidden pb-20">
       <BackgroundBeams className="z-0" />
 
       {/* Username Modal */}
@@ -303,6 +304,7 @@ export default function Home() {
           )}
         </motion.div>
       </section>
+      <Footer />
     </div>
   );
 }
