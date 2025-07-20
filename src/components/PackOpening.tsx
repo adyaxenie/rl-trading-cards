@@ -305,33 +305,6 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
         }
       `}</style>
       
-      {/* Pack strategy guide */}
-      {!showCards && !isOpening && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 bg-black/40 backdrop-blur-sm rounded-lg p-4 max-w-4xl mx-auto"
-        >
-          <div className="text-white text-sm">
-            <div className="font-bold mb-2">💡 Pack Strategy Guide</div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div className="text-center">
-                <div className="font-semibold text-slate-300">Early Game (0-30% collection)</div>
-                <div className="text-gray-400">Choose Standard packs for collection building</div>
-              </div>
-              <div className="text-center">
-                <div className="font-semibold text-yellow-300">Mid Game (30-70% collection)</div>
-                <div className="text-gray-400">Premium packs offer best rate efficiency</div>
-              </div>
-              <div className="text-center">
-                <div className="font-semibold text-purple-300">Late Game (70%+ collection)</div>
-                <div className="text-gray-400">Ultimate packs for missing high-rarity cards</div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-      
       <AnimatePresence mode="wait">
         {!showCards ? (
           <motion.div

@@ -118,8 +118,6 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 relative overflow-hidden">
       <BackgroundBeams className="z-0" />
       
-      <Navbar credits={userStats.credits} timeUntilNext={0} />
-
       {/* Username Modal */}
       <UsernameModal 
         isOpen={showUsernameModal}

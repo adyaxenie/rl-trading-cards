@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import AuthProvider from '@/components/AuthProvider'
+import NavbarWrapper from '@/components/NavbarWrapper'
 import { Analytics } from "@vercel/analytics/next"
 
 const inter = Inter({ subsets: ['latin'] })
@@ -19,10 +20,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <link rel="icon" href="/favicon.ico" sizes="any" />
-
       <body className={inter.className}>
         <AuthProvider>
-          {children}
+          {/* Navbar will appear on all pages */}
+          <NavbarWrapper />
+          
+          {/* Main content */}
+          <main>
+            {children}
+          </main>
         </AuthProvider>
         <Analytics />
       </body>

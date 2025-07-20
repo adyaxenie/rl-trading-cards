@@ -332,8 +332,6 @@ export default function Inventory() {
     <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 relative overflow-hidden">
       <BackgroundBeams className="z-0" />
       
-      <Navbar credits={credits} timeUntilNext={timeUntilNext} />
-
       {/* Tab Navigation */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}

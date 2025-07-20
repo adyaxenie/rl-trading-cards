@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
-import { getUserCredits, updateUserCredits, getUserByEmail } from '@/lib/database'
+import { getUserCredits, updateUserCredits, getUserByEmail, executeQuerySimple } from '@/lib/database'
 
 const CREDITS_PER_HOUR = 10
 const MAX_DAILY_CREDITS = 240 // 24 hours * 10 credits = 240 max per day
@@ -21,36 +21,50 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const { credits, last_credit_earn } = await getUserCredits(user.id)
+    const { credits } = await getUserCredits(user.id)
+    
+    // Get the LAST CREDITS CLAIM time, not last_credit_earn (which updates on other actions)
+    const [lastClaimRows] = await executeQuerySimple(
+      'SELECT last_daily_claim FROM users WHERE id = ?',
+      [user.id]
+    )
+    
+    const lastClaimDate = (lastClaimRows as any[])[0]?.last_daily_claim
+    const lastClaim = lastClaimDate ? new Date(lastClaimDate) : new Date(0) // If never claimed, use epoch
     
     // Calculate available credits to claim
     const now = new Date()
-    const lastEarned = new Date(last_credit_earn)
-    
-    // Reset daily limit if it's a new day (24 hours since last claim)
-    const hoursSinceLastClaim = (now.getTime() - lastEarned.getTime()) / (1000 * 60 * 60)
-    const isNewDay = hoursSinceLastClaim >= HOURS_PER_DAY
+    const hoursSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60 * 60)
+    const isNewDay = hoursSinceLastClaim >= 24
     
     let availableCredits = 0
     if (isNewDay) {
-      // New day = full daily amount available
+      // Full 240 credits
       availableCredits = MAX_DAILY_CREDITS
     } else {
-      // Calculate how many credits should be available based on time passed
-      const maxCreditsForTimePassed = Math.floor(hoursSinceLastClaim) * CREDITS_PER_HOUR
-      availableCredits = Math.min(maxCreditsForTimePassed, MAX_DAILY_CREDITS)
+      // Only allow claiming if it's been at least 1 hour since last claim
+      if (hoursSinceLastClaim >= 1) {
+        availableCredits = Math.floor(hoursSinceLastClaim) * CREDITS_PER_HOUR
+        availableCredits = Math.min(availableCredits, MAX_DAILY_CREDITS)
+      }
     }
     
-    // Time until next credit becomes available
-    const minutesSinceLastHour = Math.floor(hoursSinceLastClaim * 60) % 60
-    const timeUntilNextCredit = (60 - minutesSinceLastHour) * 60 // in seconds
-    
+    // Timer calculation
+    let timeUntilNext
+    if (isNewDay || availableCredits > 0) {
+      timeUntilNext = 0
+    } else {
+      // Time until next hour
+      const minutesSinceLastHour = (hoursSinceLastClaim * 60) % 60
+      timeUntilNext = Math.ceil((60 - minutesSinceLastHour) * 60)
+    }
+
     return NextResponse.json({
       credits,
-      lastEarned: last_credit_earn,
+      lastClaim: lastClaim.toISOString(),
       availableCredits,
       maxDailyCredits: MAX_DAILY_CREDITS,
-      timeUntilNextCredit: availableCredits > 0 ? 0 : timeUntilNextCredit,
+      timeUntilNext,
       isNewDay,
       hoursSinceLastClaim: Math.floor(hoursSinceLastClaim)
     })
@@ -74,43 +88,69 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const { credits, last_credit_earn } = await getUserCredits(user.id)
+    const { credits } = await getUserCredits(user.id)
+    
+    // Get the LAST CREDITS CLAIM time
+    const [lastClaimRows] = await executeQuerySimple(
+      'SELECT last_daily_claim FROM users WHERE id = ?',
+      [user.id]
+    )
+    
+    const lastClaimDate = (lastClaimRows as any[])[0]?.last_daily_claim
+    const lastClaim = lastClaimDate ? new Date(lastClaimDate) : new Date(0)
     
     // Calculate available credits to claim
     const now = new Date()
-    const lastEarned = new Date(last_credit_earn)
-    const hoursSinceLastClaim = (now.getTime() - lastEarned.getTime()) / (1000 * 60 * 60)
+    const hoursSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60 * 60)
+    const isNewDay = hoursSinceLastClaim >= 24
     
     let availableCredits = 0
-    if (hoursSinceLastClaim >= HOURS_PER_DAY) {
-      // New day = full daily amount available
+    if (isNewDay) {
+      // Full 240 credits
       availableCredits = MAX_DAILY_CREDITS
     } else {
-      // Calculate based on time passed
-      const maxCreditsForTimePassed = Math.floor(hoursSinceLastClaim) * CREDITS_PER_HOUR
-      availableCredits = Math.min(maxCreditsForTimePassed, MAX_DAILY_CREDITS)
+      // Only allow claiming if it's been at least 1 hour since last claim
+      if (hoursSinceLastClaim >= 1) {
+        availableCredits = Math.floor(hoursSinceLastClaim) * CREDITS_PER_HOUR
+        availableCredits = Math.min(availableCredits, MAX_DAILY_CREDITS)
+      }
     }
     
     if (availableCredits > 0) {
       const newCredits = credits + availableCredits
-      await updateUserCredits(user.id, newCredits)
+      
+      // Update both credits AND last_daily_claim (the credits claim timestamp)
+      await executeQuerySimple(
+        'UPDATE users SET credits = ?, last_daily_claim = ? WHERE id = ?',
+        [newCredits, now.toISOString().slice(0, 19).replace('T', ' '), user.id]
+      )
       
       return NextResponse.json({
         credits: newCredits,
-        lastEarned: now,
+        lastClaim: now.toISOString(),
         claimedCredits: availableCredits,
-        message: `Claimed ${availableCredits} credits!`
+        message: `Claimed ${availableCredits} credits!`,
+        timeUntilNext: 0
       })
     } else {
-      const minutesSinceLastHour = Math.floor(hoursSinceLastClaim * 60) % 60
-      const timeUntilNext = (60 - minutesSinceLastHour) * 60
+      // Calculate time until next credits are available
+      let timeUntilNext
+      if (hoursSinceLastClaim < 1) {
+        // Time until next hour
+        const minutesSinceLastHour = (hoursSinceLastClaim * 60) % 60
+        timeUntilNext = Math.ceil((60 - minutesSinceLastHour) * 60)
+      } else {
+        // This shouldn't happen if logic is correct
+        timeUntilNext = 3600 // 1 hour fallback
+      }
       
       return NextResponse.json({
         credits,
-        lastEarned: last_credit_earn,
+        lastClaim: lastClaim.toISOString(),
         timeUntilNext,
         availableCredits: 0,
-        error: 'No credits available to claim'
+        error: 'No credits available to claim yet',
+        message: `Next credits available in ${Math.ceil(timeUntilNext / 60)} minutes`
       }, { status: 429 })
     }
   } catch (error) {
