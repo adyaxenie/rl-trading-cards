@@ -210,7 +210,7 @@ export default function Home() {
           transition={{ delay: 1.0, duration: 0.8 }}
           className="flex justify-center mb-16"
         >
-          <PackOpening onPackOpened={setCredits} userCredits={credits} />
+          <PackOpening onPackOpened={setCredits} />
         </motion.div>
       </section>
 

@@ -6,6 +6,7 @@ import { Coins, Timer, User, Menu, X, Package, Trophy, Settings, CheckCircle, Cl
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useCredits } from '@/contexts/CreditsContext';
 
 interface Task {
   id: number;
@@ -33,7 +34,8 @@ interface NavbarProps {
   credits?: number;
 }
 
-export default function Navbar({ credits: propCredits }: NavbarProps) {
+export default function Navbar() {
+  const { credits, setCredits, refreshCredits, availableCredits, setAvailableCredits } = useCredits();
   const { data: session, status } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -41,37 +43,13 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [unclaimedCount, setUnclaimedCount] = useState(0);
   const [isRefreshingTasks, setIsRefreshingTasks] = useState(false);
-  
-  // Daily credits system
-  const [credits, setCredits] = useState(propCredits || 0);
-  const [availableCredits, setAvailableCredits] = useState(0);
-  const [timeUntilNext, setTimeUntilNext] = useState(0);
+  const [timeUntilNext, setTimeUntilNext] = useState(0); // Add this back
   const [isClaimingCredits, setIsClaimingCredits] = useState(false);
   const [isClaimingTask, setIsClaimingTask] = useState<number | null>(null);
+  const [lastApiCall, setLastApiCall] = useState(0);
   const pathname = usePathname();
 
-  const formatTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy': return 'text-green-400 border-green-400/30';
-      case 'medium': return 'text-yellow-400 border-yellow-400/30';
-      case 'hard': return 'text-orange-400 border-orange-400/30';
-      case 'expert': return 'text-red-400 border-red-400/30';
-      default: return 'text-gray-400 border-gray-400/30';
-    }
-  };
-
-  // Calculate countdown locally
+  // Calculate countdown locally - ADD THIS BACK
   const calculateTimeUntilReset = (): number => {
     const now = new Date();
     const nextReset = new Date();
@@ -85,6 +63,103 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
     }
     
     return Math.max(0, Math.floor((nextReset.getTime() - now.getTime()) / 1000));
+  };
+
+  // Load credits and tasks
+  useEffect(() => {
+    if (session?.user) {
+      loadCreditsAndTasks();
+      
+      const interval = setInterval(() => {
+        loadCreditsAndTasks();
+      }, 30000); // Check every 30 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [session]);
+
+  // Update countdown every second - ADD THIS BACK
+  useEffect(() => {
+    if (timeUntilNext > 0) {
+      const interval = setInterval(() => {
+        setTimeUntilNext(prev => {
+          const newTime = prev - 1;
+          if (newTime <= 0) {
+            // Reset happened, reload data with delay
+            setTimeout(() => {
+              loadCreditsAndTasks();
+            }, 1000);
+            return 0;
+          }
+          return newTime;
+        });
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [timeUntilNext]);
+
+  const loadCreditsAndTasks = async () => {
+    // Debounce API calls
+    const now = Date.now();
+    if (now - lastApiCall < 5000) {
+      return;
+    }
+    setLastApiCall(now);
+
+    try {
+      // Use context refresh instead
+      await refreshCredits();
+
+      // IMPORTANT: Set the timer after refreshing credits
+      if (availableCredits === 0) {
+        setTimeUntilNext(calculateTimeUntilReset());
+      } else {
+        setTimeUntilNext(0);
+      }
+
+      // Load tasks
+      const tasksResponse = await fetch('/api/tasks');
+      if (tasksResponse.ok) {
+        const tasksData = await tasksResponse.json();
+        setTasks(tasksData.tasks);
+        setUnclaimedCount(tasksData.unclaimedCount);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+  };
+
+  const handleClaimCredits = async () => {
+    if (isClaimingCredits || availableCredits <= 0) return;
+    
+    setIsClaimingCredits(true);
+    try {
+      const response = await fetch('/api/credits', { method: 'POST' });
+      const data = await response.json();
+      
+      if (response.ok) {
+        setCredits(data.credits); // Updates globally via context
+        setAvailableCredits(0);
+        setTimeUntilNext(calculateTimeUntilReset()); // Set timer after claiming
+      } else {
+        console.error('Failed to claim credits:', data.error);
+      }
+    } catch (error) {
+      console.error('Error claiming credits:', error);
+    } finally {
+      setIsClaimingCredits(false);
+    }
+  };
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'easy': return 'text-green-400 border-green-400/30';
+      case 'medium': return 'text-yellow-400 border-yellow-400/30';
+      case 'hard': return 'text-orange-400 border-orange-400/30';
+      case 'expert': return 'text-red-400 border-red-400/30';
+      default: return 'text-gray-400 border-gray-400/30';
+    }
   };
 
   // Load credits and tasks
@@ -119,29 +194,6 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
     }
   }, [timeUntilNext]);
 
-  const loadCreditsAndTasks = async () => {
-    try {
-      // Load daily credits system
-      const creditsResponse = await fetch('/api/credits');
-      if (creditsResponse.ok) {
-        const creditsData = await creditsResponse.json();
-        setCredits(creditsData.credits);
-        setAvailableCredits(creditsData.canClaim ? 240 : 0);
-        setTimeUntilNext(creditsData.canClaim ? 0 : calculateTimeUntilReset());
-      }
-
-      // Load tasks
-      const tasksResponse = await fetch('/api/tasks');
-      if (tasksResponse.ok) {
-        const tasksData = await tasksResponse.json();
-        setTasks(tasksData.tasks);
-        setUnclaimedCount(tasksData.unclaimedCount);
-      }
-    } catch (error) {
-      console.error('Error loading data:', error);
-    }
-  };
-
   const refreshTasks = async () => {
     setIsRefreshingTasks(true);
     try {
@@ -165,28 +217,6 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
   const handleSignOut = () => {
     signOut();
     setUserDropdownOpen(false);
-  };
-
-  const handleClaimCredits = async () => {
-    if (isClaimingCredits || availableCredits <= 0) return;
-    
-    setIsClaimingCredits(true);
-    try {
-      const response = await fetch('/api/credits', { method: 'POST' });
-      const data = await response.json();
-      
-      if (response.ok) {
-        setCredits(data.credits);
-        setAvailableCredits(0);
-        setTimeUntilNext(calculateTimeUntilReset());
-      } else {
-        console.error('Failed to claim credits:', data.error);
-      }
-    } catch (error) {
-      console.error('Error claiming credits:', error);
-    } finally {
-      setIsClaimingCredits(false);
-    }
   };
 
   const handleClaimTask = async (userTaskId: number) => {
@@ -222,6 +252,17 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
 
   const completedTasks = tasks.filter(t => t.completed && !t.claimed);
   const activeTasks = tasks.filter(t => !t.completed).slice(0, 5);
+
+  function formatTime(timeUntilNext: number) {
+    const hours = Math.floor(timeUntilNext / 3600);
+    const minutes = Math.floor((timeUntilNext % 3600) / 60);
+    const seconds = timeUntilNext % 60;
+    return [
+      hours > 0 ? `${hours}h` : null,
+      minutes > 0 ? `${minutes}m` : null,
+      `${seconds}s`
+    ].filter(Boolean).join(' ');
+  }
 
   return (
     <nav className="relative z-10 bg-black/20 backdrop-blur-sm border-b border-white/10">
@@ -428,7 +469,7 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
                     <Coins className="w-4 h-4 text-yellow-400" />
                     <span className="font-semibold text-yellow-400 text-sm">{credits?.toLocaleString() || 0}</span>
                     {timeUntilNext > 0 && (
-                      <span className="text-xs text-gray-400 hidden sm:inline">
+                      <span className="w-20 text-xs text-gray-400 hidden sm:inline">
                         ({formatTime(timeUntilNext)})
                       </span>
                     )}

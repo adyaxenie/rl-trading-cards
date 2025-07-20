@@ -5,13 +5,10 @@ import { ExpandableCard } from './ExpandableCard';
 import { Player } from '@/lib/database';
 import { PACK_TYPES } from '@/lib/pack-config';
 import { User } from 'lucide-react';
+import { useCredits } from '@/contexts/CreditsContext';
 
-interface PackOpeningProps {
-  onPackOpened: (remainingCredits: number) => void;
-  userCredits: number;
-}
-
-export default function PackOpening({ onPackOpened, userCredits }: PackOpeningProps) {
+export default function PackOpening({ onPackOpened }: { onPackOpened?: (remainingCredits: number) => void }) {
+  const { credits, setCredits } = useCredits(); // Fixed: use 'credits' not 'userCredits'
   const { data: session, status } = useSession();
   const [isOpening, setIsOpening] = useState<boolean>(false);
   const [cards, setCards] = useState<Player[]>([]);
@@ -71,8 +68,8 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
     }
 
     const pack = packTypes[packType as keyof typeof packTypes];
-    if (userCredits < pack.cost) {
-      alert(`Not enough credits! You need ${pack.cost} credits but only have ${userCredits}.`);
+    if (credits < pack.cost) { // Fixed: use 'credits' not 'userCredits'
+      alert(`Not enough credits! You need ${pack.cost} credits but only have ${credits}.`);
       return;
     }
 
@@ -90,13 +87,17 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
         const data = await response.json();
         setCards(data.cards);
         
+        // Update credits in context (updates navbar instantly!)
+        setCredits(data.remainingCredits);
+        
         // Delay showing cards for dramatic effect
         setTimeout(() => {
           setShowCards(true);
           setIsOpening(false);
         }, 1500);
         
-        onPackOpened(data.remainingCredits);
+        // Optional callback for parent component
+        onPackOpened?.(data.remainingCredits);
       } else {
         const errorData = await response.json();
         alert(errorData.error || 'Failed to open pack');
@@ -119,7 +120,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
     const isSilver = pack.foilType === 'silver';
     const isGold = pack.foilType === 'gold';
     const isBlack = pack.foilType === 'black';
-    const canAfford = session && userCredits >= pack.cost;
+    const canAfford = session && credits >= pack.cost; // Fixed: use 'credits' not 'userCredits'
     const isDisabled = !session || !canAfford;
     
     return (
@@ -203,7 +204,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl">
               <div className="text-center text-white">
                 <div className="text-sm font-bold mb-1">Not Enough Credits</div>
-                <div className="text-xs">Need {(pack.cost).toLocaleString()} have {(userCredits).toLocaleString()}</div>
+                <div className="text-xs">Need {(pack.cost).toLocaleString()} have {(credits).toLocaleString()}</div>
               </div>
             </div>
           )}
@@ -255,7 +256,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
             
             {!canAfford && session && (
               <div className="text-xs text-red-400 mb-2">
-                Need {pack.cost - userCredits} more credits
+                Need {pack.cost - credits} more credits
               </div>
             )}
             
