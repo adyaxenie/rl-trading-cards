@@ -3,9 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { getUserCredits, updateUserCredits, getUserByEmail, executeQuerySimple } from '@/lib/database'
 
-const CREDITS_PER_HOUR = 10
-const MAX_DAILY_CREDITS = 240 // 24 hours * 10 credits = 240 max per day
-const HOURS_PER_DAY = 24
+const DAILY_CREDITS = 240
+const RESET_HOUR_UTC = 8 // 8 AM UTC = 12 AM PT
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -15,7 +14,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Get user ID from email
     const user = await getUserByEmail(session.user.email)
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -23,50 +21,30 @@ export async function GET(request: NextRequest) {
 
     const { credits } = await getUserCredits(user.id)
     
-    // Get the LAST CREDITS CLAIM time, not last_credit_earn (which updates on other actions)
-    const [lastClaimRows] = await executeQuerySimple(
-      'SELECT last_daily_claim FROM users WHERE id = ?',
-      [user.id]
-    )
-    
-    const lastClaimDate = (lastClaimRows as any[])[0]?.last_daily_claim
-    const lastClaim = lastClaimDate ? new Date(lastClaimDate) : new Date(0) // If never claimed, use epoch
-    
-    // Calculate available credits to claim
-    const now = new Date()
-    const hoursSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60 * 60)
-    const isNewDay = hoursSinceLastClaim >= 24
-    
-    let availableCredits = 0
-    if (isNewDay) {
-      // Full 240 credits
-      availableCredits = MAX_DAILY_CREDITS
-    } else {
-      // Only allow claiming if it's been at least 1 hour since last claim
-      if (hoursSinceLastClaim >= 1) {
-        availableCredits = Math.floor(hoursSinceLastClaim) * CREDITS_PER_HOUR
-        availableCredits = Math.min(availableCredits, MAX_DAILY_CREDITS)
-      }
+    // Get last daily claim date - first ensure the column exists
+    let lastClaimDate = null
+    try {
+      const [lastClaimRows] = await executeQuerySimple(
+        'SELECT last_daily_claim FROM users WHERE id = ?',
+        [user.id]
+      )
+      lastClaimDate = (lastClaimRows as any[])[0]?.last_daily_claim
+    } catch (error) {
+      console.log('last_daily_claim column does not exist, user can claim')
+      // Column doesn't exist, so user can claim
     }
     
-    // Timer calculation
-    let timeUntilNext
-    if (isNewDay || availableCredits > 0) {
-      timeUntilNext = 0
-    } else {
-      // Time until next hour
-      const minutesSinceLastHour = (hoursSinceLastClaim * 60) % 60
-      timeUntilNext = Math.ceil((60 - minutesSinceLastHour) * 60)
-    }
+    // Check if user can claim today
+    const canClaim = canClaimToday(lastClaimDate)
+    const timeUntilNext = getTimeUntilNextReset()
 
     return NextResponse.json({
       credits,
-      lastClaim: lastClaim.toISOString(),
-      availableCredits,
-      maxDailyCredits: MAX_DAILY_CREDITS,
+      canClaim,
+      dailyCredits: DAILY_CREDITS,
       timeUntilNext,
-      isNewDay,
-      hoursSinceLastClaim: Math.floor(hoursSinceLastClaim)
+      lastClaim: lastClaimDate,
+      nextResetTime: getNextResetTime().toISOString()
     })
   } catch (error) {
     console.error('Error fetching credits:', error)
@@ -82,7 +60,6 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Get user ID from email
     const user = await getUserByEmail(session.user.email)
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -90,71 +67,108 @@ export async function POST(request: NextRequest) {
 
     const { credits } = await getUserCredits(user.id)
     
-    // Get the LAST CREDITS CLAIM time
-    const [lastClaimRows] = await executeQuerySimple(
-      'SELECT last_daily_claim FROM users WHERE id = ?',
-      [user.id]
-    )
-    
-    const lastClaimDate = (lastClaimRows as any[])[0]?.last_daily_claim
-    const lastClaim = lastClaimDate ? new Date(lastClaimDate) : new Date(0)
-    
-    // Calculate available credits to claim
-    const now = new Date()
-    const hoursSinceLastClaim = (now.getTime() - lastClaim.getTime()) / (1000 * 60 * 60)
-    const isNewDay = hoursSinceLastClaim >= 24
-    
-    let availableCredits = 0
-    if (isNewDay) {
-      // Full 240 credits
-      availableCredits = MAX_DAILY_CREDITS
-    } else {
-      // Only allow claiming if it's been at least 1 hour since last claim
-      if (hoursSinceLastClaim >= 1) {
-        availableCredits = Math.floor(hoursSinceLastClaim) * CREDITS_PER_HOUR
-        availableCredits = Math.min(availableCredits, MAX_DAILY_CREDITS)
-      }
+    // Get last daily claim date
+    let lastClaimDate = null
+    try {
+      const [lastClaimRows] = await executeQuerySimple(
+        'SELECT last_daily_claim FROM users WHERE id = ?',
+        [user.id]
+      )
+      lastClaimDate = (lastClaimRows as any[])[0]?.last_daily_claim
+    } catch (error) {
+      console.log('last_daily_claim column does not exist, will create it')
     }
     
-    if (availableCredits > 0) {
-      const newCredits = credits + availableCredits
-      
-      // Update both credits AND last_daily_claim (the credits claim timestamp)
-      await executeQuerySimple(
-        'UPDATE users SET credits = ?, last_daily_claim = ? WHERE id = ?',
-        [newCredits, now.toISOString().slice(0, 19).replace('T', ' '), user.id]
-      )
-      
-      return NextResponse.json({
-        credits: newCredits,
-        lastClaim: now.toISOString(),
-        claimedCredits: availableCredits,
-        message: `Claimed ${availableCredits} credits!`,
-        timeUntilNext: 0
-      })
-    } else {
-      // Calculate time until next credits are available
-      let timeUntilNext
-      if (hoursSinceLastClaim < 1) {
-        // Time until next hour
-        const minutesSinceLastHour = (hoursSinceLastClaim * 60) % 60
-        timeUntilNext = Math.ceil((60 - minutesSinceLastHour) * 60)
-      } else {
-        // This shouldn't happen if logic is correct
-        timeUntilNext = 3600 // 1 hour fallback
-      }
-      
+    // Check if user can claim today
+    if (!canClaimToday(lastClaimDate)) {
+      const timeUntilNext = getTimeUntilNextReset()
       return NextResponse.json({
         credits,
-        lastClaim: lastClaim.toISOString(),
         timeUntilNext,
-        availableCredits: 0,
-        error: 'No credits available to claim yet',
-        message: `Next credits available in ${Math.ceil(timeUntilNext / 60)} minutes`
+        canClaim: false,
+        error: 'Already claimed today',
+        message: `Next claim available in ${Math.ceil(timeUntilNext / 3600)} hours`
       }, { status: 429 })
     }
+    
+    // Claim daily credits
+    const newCredits = credits + DAILY_CREDITS
+    const today = getCurrentDateString()
+    
+    // Update credits and last claim date - handle missing column gracefully
+    try {
+      await executeQuerySimple(
+        'UPDATE users SET credits = ?, last_daily_claim = ? WHERE id = ?',
+        [newCredits, today, user.id]
+      )
+    } catch (error) {
+      // If column doesn't exist, add it first
+      console.log('Adding last_daily_claim column...')
+      try {
+        await executeQuerySimple('ALTER TABLE users ADD COLUMN last_daily_claim DATE NULL')
+        await executeQuerySimple(
+          'UPDATE users SET credits = ?, last_daily_claim = ? WHERE id = ?',
+          [newCredits, today, user.id]
+        )
+      } catch (alterError) {
+        console.error('Could not add column:', alterError)
+        // Fallback: just update credits without tracking date
+        await executeQuerySimple('UPDATE users SET credits = ? WHERE id = ?', [newCredits, user.id])
+      }
+    }
+    
+    return NextResponse.json({
+      credits: newCredits,
+      claimedCredits: DAILY_CREDITS,
+      message: `Claimed ${DAILY_CREDITS} daily credits!`,
+      canClaim: false,
+      timeUntilNext: getTimeUntilNextReset()
+    })
   } catch (error) {
     console.error('Error claiming credits:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+// Helper functions
+function canClaimToday(lastClaimDate: string | null): boolean {
+  if (!lastClaimDate) return true // Never claimed before
+  
+  const today = getCurrentDateString()
+  const lastClaim = new Date(lastClaimDate).toISOString().slice(0, 10)
+  
+  console.log('Claim check:', { today, lastClaim, canClaim: lastClaim !== today })
+  return lastClaim !== today
+}
+
+function getCurrentDateString(): string {
+  const now = new Date()
+  
+  // If it's before reset hour UTC, consider it yesterday for claiming purposes
+  if (now.getUTCHours() < RESET_HOUR_UTC) {
+    now.setUTCDate(now.getUTCDate() - 1)
+  }
+  
+  return now.toISOString().slice(0, 10) // YYYY-MM-DD format
+}
+
+function getNextResetTime(): Date {
+  const now = new Date()
+  const nextReset = new Date()
+  
+  // Set to reset hour today
+  nextReset.setUTCHours(RESET_HOUR_UTC, 0, 0, 0)
+  
+  // If reset time has passed today, move to tomorrow
+  if (now >= nextReset) {
+    nextReset.setUTCDate(nextReset.getUTCDate() + 1)
+  }
+  
+  return nextReset
+}
+
+function getTimeUntilNextReset(): number {
+  const now = new Date()
+  const nextReset = getNextResetTime()
+  return Math.max(0, Math.floor((nextReset.getTime() - now.getTime()) / 1000))
 }

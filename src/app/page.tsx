@@ -125,14 +125,14 @@ export default function Home() {
           transition={{ duration: 0.8 }}
           className="text-center mb-12"
         >
-          <motion.h1 
-            className="text-5xl md:text-6xl font-black h-20 mb-6 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent leading-tight"
+            <motion.h1 
+            className="text-3xl sm:text-4xl md:text-6xl font-black h-auto md:h-20 mb-6 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent leading-tight break-words"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.8 }}
-          >
+            >
             RL Trading Cards
-          </motion.h1>
+            </motion.h1>
           
           <motion.p 
             className="text-xl md:text-2xl text-blue-200 max-w-3xl mx-auto mb-8 leading-relaxed"
@@ -176,7 +176,7 @@ export default function Home() {
                 </button>
                 <div className="text-center">
                   <div className="text-green-300 font-semibold">✨ 3500 Starter Pack Credits</div>
-                  <div className="text-sm text-gray-400">+ 250 Daily Credits</div>
+                  <div className="text-sm text-gray-400">+ 240 Daily Credits</div>
                 </div>
               </div>
             )}

@@ -19,7 +19,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <link rel="icon" href="/favicon.ico" sizes="any" />
+      <link rel="icon" href="/icon.svg" sizes="any" />
       <body className={inter.className}>
         <AuthProvider>
           {/* Navbar will appear on all pages */}

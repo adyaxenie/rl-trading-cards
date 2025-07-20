@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Package, Trophy, Star, Filter, Eye, BarChart3, Settings, Crown } from 'lucide-react';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import { ExpandableCard } from '@/components/ExpandableCard';
 import Navbar from '@/components/Navbar';
 import { BackgroundBeams } from '@/components/BackgroundBeams';
@@ -68,6 +68,8 @@ export default function Inventory() {
       fetchInventory();
       fetchCredits();
       fetchShowcase();
+    } else if (status === 'unauthenticated') {
+      setLoading(false);
     }
   }, [session, status]);
 
@@ -307,7 +309,7 @@ export default function Inventory() {
     }
   };
 
-  if (status === 'loading' || loading) {
+  if (status === 'loading' || (status === 'authenticated' && loading)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white"></div>
@@ -320,9 +322,9 @@ export default function Inventory() {
       <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-white mb-4">Please sign in to view your inventory</h1>
-          <Link href="/auth/signin" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors" onClick={() => signIn('google')}>
             Sign In
-          </Link>
+          </button>
         </div>
       </div>
     );

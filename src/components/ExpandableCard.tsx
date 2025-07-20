@@ -48,10 +48,10 @@ const rarityBadgeStyle = {
 
 // Balanced sell values (conservative approach) with OVR multipliers
 const baseSellValues = {
-  'Super': 250,    // 50% of Standard pack cost
-  'Epic': 100,      // 20% of Standard pack cost
-  'Rare': 30,      // 6% of Standard pack cost
-  'Common': 12     // 2.4% of Standard pack cost
+  'Super': 500,    // Increased from 250
+  'Epic': 150,     // Increased from 75
+  'Rare': 60,      // Increased from 30
+  'Common': 25     // Increased from 12
 };
 
 // Calculate sell value based on OVR rating directly
@@ -62,7 +62,7 @@ function calculateSellValue(rarity: keyof typeof baseSellValues, overallRating: 
   let multiplier = 1.0;
   
   if (overallRating >= 95) {
-    multiplier = 2.0;     // Elite players: 100% bonus
+    multiplier = 3.0;     // Elite players: 100% bonus
   } else if (overallRating >= 90) {
     multiplier = 1.75;    // Superstar players: 75% bonus
   } else if (overallRating >= 85) {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Coins, Timer, User, Menu, X, Package, Trophy, Settings, CheckCircle, Clock, Gift, Target } from 'lucide-react';
+import { Coins, Timer, User, Menu, X, Package, Trophy, Settings, CheckCircle, Clock, Gift, Target, RefreshCw } from 'lucide-react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -40,8 +40,9 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
   const [tasksDropdownOpen, setTasksDropdownOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [unclaimedCount, setUnclaimedCount] = useState(0);
+  const [isRefreshingTasks, setIsRefreshingTasks] = useState(false);
   
-  // Use your existing credits system
+  // Daily credits system
   const [credits, setCredits] = useState(propCredits || 0);
   const [availableCredits, setAvailableCredits] = useState(0);
   const [timeUntilNext, setTimeUntilNext] = useState(0);
@@ -70,6 +71,22 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
     }
   };
 
+  // Calculate countdown locally
+  const calculateTimeUntilReset = (): number => {
+    const now = new Date();
+    const nextReset = new Date();
+    
+    // Set to 8 AM UTC (reset time)
+    nextReset.setUTCHours(8, 0, 0, 0);
+    
+    // If reset time has passed today, move to tomorrow
+    if (now >= nextReset) {
+      nextReset.setUTCDate(nextReset.getUTCDate() + 1);
+    }
+    
+    return Math.max(0, Math.floor((nextReset.getTime() - now.getTime()) / 1000));
+  };
+
   // Load credits and tasks
   useEffect(() => {
     if (session?.user) {
@@ -83,15 +100,34 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
     }
   }, [session]);
 
+  // Update countdown every second
+  useEffect(() => {
+    if (timeUntilNext > 0) {
+      const interval = setInterval(() => {
+        setTimeUntilNext(prev => {
+          const newTime = prev - 1;
+          if (newTime <= 0) {
+            // Reset happened, reload data
+            loadCreditsAndTasks();
+            return 0;
+          }
+          return newTime;
+        });
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [timeUntilNext]);
+
   const loadCreditsAndTasks = async () => {
     try {
-      // Load your existing credits system
+      // Load daily credits system
       const creditsResponse = await fetch('/api/credits');
       if (creditsResponse.ok) {
         const creditsData = await creditsResponse.json();
         setCredits(creditsData.credits);
-        setAvailableCredits(creditsData.availableCredits || 0);
-        setTimeUntilNext(creditsData.timeUntilNext || 0);
+        setAvailableCredits(creditsData.canClaim ? 240 : 0);
+        setTimeUntilNext(creditsData.canClaim ? 0 : calculateTimeUntilReset());
       }
 
       // Load tasks
@@ -103,6 +139,22 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
       }
     } catch (error) {
       console.error('Error loading data:', error);
+    }
+  };
+
+  const refreshTasks = async () => {
+    setIsRefreshingTasks(true);
+    try {
+      const tasksResponse = await fetch('/api/tasks');
+      if (tasksResponse.ok) {
+        const tasksData = await tasksResponse.json();
+        setTasks(tasksData.tasks);
+        setUnclaimedCount(tasksData.unclaimedCount);
+      }
+    } catch (error) {
+      console.error('Error refreshing tasks:', error);
+    } finally {
+      setTimeout(() => setIsRefreshingTasks(false), 500); // Small delay for visual feedback
     }
   };
 
@@ -126,8 +178,7 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
       if (response.ok) {
         setCredits(data.credits);
         setAvailableCredits(0);
-        // Reload to get updated timing
-        await loadCreditsAndTasks();
+        setTimeUntilNext(calculateTimeUntilReset());
       } else {
         console.error('Failed to claim credits:', data.error);
       }
@@ -218,11 +269,11 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
                           : 'text-gray-300 hover:bg-white/5 hover:text-white'
                       }`}
                     >
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-4 h-4 mr-2" />
                       <span>{item.name}</span>
                       {isActive && (
                         <motion.div
-                          className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg border border-blue-400/30"
+                          className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg border border-blue-400/30 -z-10"
                           layoutId="navbar-active"
                           transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                         />
@@ -263,11 +314,24 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: -10 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute right-0 top-full mt-2 w-96 bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto"
+                        className="absolute right-0 sm:right-0 left-0 sm:left-auto top-full mt-2 w-screen sm:w-96 max-w-sm sm:max-w-none bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto mx-2 sm:mx-0"
                       >
                         <div className="py-2">
-                          <div className="px-4 py-2 border-b border-white/10">
+                          {/* Header with refresh button */}
+                          <div className="px-4 py-2 border-b border-white/10 flex items-center justify-between">
                             <h3 className="text-sm font-medium text-white">Tasks & Progression</h3>
+                            <motion.button
+                              onClick={refreshTasks}
+                              disabled={isRefreshingTasks}
+                              className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              title="Refresh tasks"
+                            >
+                              <RefreshCw 
+                                className={`w-3 h-3 text-gray-300 ${isRefreshingTasks ? 'animate-spin' : ''}`} 
+                              />
+                            </motion.button>
                           </div>
 
                           {/* Completed Tasks */}
@@ -276,14 +340,14 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
                               <h4 className="text-xs font-medium text-green-400 mb-2">Ready to Claim</h4>
                               {completedTasks.map((task) => (
                                 <div key={task.id} className="flex items-center justify-between py-2 px-2 bg-green-500/10 rounded mb-2">
-                                  <div className="flex-1">
-                                    <p className="text-sm text-white font-medium">{task.task.title}</p>
-                                    <p className="text-xs text-gray-300">{task.task.description}</p>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm text-white font-medium truncate">{task.task.title}</p>
+                                    <p className="text-xs text-gray-300 truncate">{task.task.description}</p>
                                   </div>
                                   <button
                                     onClick={() => handleClaimTask(task.id)}
                                     disabled={isClaimingTask === task.id}
-                                    className="ml-2 bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white px-3 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1"
+                                    className="ml-2 bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white px-3 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1 flex-shrink-0"
                                   >
                                     {isClaimingTask === task.id ? (
                                       <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
@@ -306,20 +370,20 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
                               activeTasks.map((task) => (
                                 <div key={task.id} className="py-2 px-2 hover:bg-white/5 rounded mb-2">
                                   <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                      <p className="text-sm text-white font-medium">{task.task.title}</p>
-                                      <p className="text-xs text-gray-300">{task.task.description}</p>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm text-white font-medium truncate">{task.task.title}</p>
+                                      <p className="text-xs text-gray-300 truncate">{task.task.description}</p>
                                       <div className="flex items-center space-x-2 mt-1">
-                                        <div className="bg-gray-700 rounded-full h-2 flex-1 max-w-24">
+                                        <div className="bg-gray-700 rounded-full h-2 flex-1 max-w-16 sm:max-w-24">
                                           <div 
                                             className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                                             style={{ width: `${Math.min((task.progress / task.task.target_value) * 100, 100)}%` }}
                                           />
                                         </div>
-                                        <span className="text-xs text-gray-400">{task.progress}/{task.task.target_value}</span>
+                                        <span className="text-xs text-gray-400 whitespace-nowrap">{task.progress}/{task.task.target_value}</span>
                                       </div>
                                     </div>
-                                    <div className="ml-2 text-right">
+                                    <div className="ml-2 text-right flex-shrink-0">
                                       <div className={`text-xs px-2 py-1 rounded border ${getDifficultyColor(task.task.difficulty)}`}>
                                         {task.task.difficulty}
                                       </div>
@@ -339,7 +403,7 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
                 </div>
               )}
 
-              {/* Credits - Your existing system */}
+              {/* Daily Credits */}
               <motion.button
                 onClick={handleClaimCredits}
                 disabled={availableCredits <= 0 || isClaimingCredits}
@@ -350,13 +414,13 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
                 }`}
                 whileHover={availableCredits > 0 ? { scale: 1.05 } : {}}
                 whileTap={availableCredits > 0 ? { scale: 0.95 } : {}}
-                title={availableCredits > 0 ? `Click to claim ${availableCredits} credits!` : `Next credits in ${formatTime(timeUntilNext)}`}
+                title={availableCredits > 0 ? "Click to claim 240 daily credits!" : `Next daily reset in ${formatTime(timeUntilNext)}`}
               >
                 {availableCredits > 0 ? (
                   <>
                     <Gift className="w-4 h-4 text-green-400" />
                     <span className="font-semibold text-green-400 text-sm">
-                      {isClaimingCredits ? 'Claiming...' : `Claim ${availableCredits}`}
+                      {isClaimingCredits ? 'Claiming...' : 'Daily 240'}
                     </span>
                   </>
                 ) : (
@@ -481,7 +545,67 @@ export default function Navbar({ credits: propCredits }: NavbarProps) {
                 );
               })}
 
-              {/* Mobile Tasks & Auth sections remain the same */}
+              {/* Mobile Tasks */}
+              {session && completedTasks.length > 0 && (
+                <div className="px-3 py-2 mt-4">
+                  <div className="bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-white/20">
+                    <h4 className="text-sm font-medium text-green-400 mb-2">Ready to Claim</h4>
+                    {completedTasks.slice(0, 3).map((task) => (
+                      <div key={task.id} className="flex items-center justify-between py-1">
+                        <span className="text-xs text-white truncate">{task.task.title}</span>
+                        <button
+                          onClick={() => handleClaimTask(task.id)}
+                          disabled={isClaimingTask === task.id}
+                          className="bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white px-2 py-1 rounded text-xs"
+                        >
+                          {isClaimingTask === task.id ? '...' : task.task.reward_credits.toLocaleString()}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile Authentication */}
+              {session ? (
+                <div className="px-3 py-2 mt-4">
+                  <div className="bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-white/20">
+                    <div className="flex items-center space-x-2 mb-2">
+                      {session.user?.image ? (
+                        <img
+                          src={session.user.image}
+                          alt="Profile"
+                          className="w-8 h-8 rounded-full bg-gray-700 object-cover"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-600 text-white font-bold text-lg">
+                          {session.user.name?.charAt(0) || "?"}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm text-white font-medium">{session.user.name}</p>
+                        <p className="text-xs text-gray-300 truncate">{session.user.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full text-left text-sm text-gray-300 hover:text-white transition-colors"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="px-3 py-2 mt-4">
+                  <button
+                    onClick={handleSignIn}
+                    className="w-full flex items-center justify-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all duration-200"
+                  >
+                    <User className="w-4 h-4" />
+                    <span>Sign In with Google</span>
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
