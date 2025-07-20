@@ -37,6 +37,35 @@ interface UserShowcaseData {
   };
 }
 
+// Rarity styling constants
+const rarityColors = {
+  'Super': 'from-black via-gray-900 to-black',
+  'Epic': 'from-yellow-200 via-amber-300 to-yellow-500',
+  'Rare': 'from-slate-200 via-gray-300 to-slate-400',
+  'Common': 'from-gray-500 via-gray-400 to-gray-500',
+};
+
+const rarityGlow = {
+  'Super': 'shadow-glow-super',
+  'Epic': 'shadow-glow-epic',
+  'Rare': 'shadow-glow-rare',
+  'Common': 'shadow-glow-common',
+};
+
+const rarityBorder = {
+  'Super': 'border-white',
+  'Epic': 'border-yellow-400',
+  'Rare': 'border-slate-300',
+  'Common': 'border-gray-400',
+};
+
+const rarityBadgeStyle = {
+  'Super': 'bg-white text-black font-bold',
+  'Epic': 'bg-yellow-600 text-black font-bold',
+  'Rare': 'bg-slate-600 text-white font-bold',
+  'Common': 'bg-gray-500 text-white font-medium',
+};
+
 export default function PublicShowcase() {
   const { data: session } = useSession();
   const params = useParams();
@@ -89,16 +118,6 @@ export default function PublicShowcase() {
       setError('Failed to load showcase');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getRarityColor = (rarity: string) => {
-    switch (rarity.toLowerCase()) {
-      case 'super': return 'text-yellow-300 border-yellow-300/30 bg-yellow-300/10 shadow-[0_0_20px_rgba(255,255,0,0.3)]';
-      case 'epic': return 'text-purple-400 border-purple-400/30 bg-purple-400/10 shadow-[0_0_20px_rgba(147,51,234,0.3)]';
-      case 'rare': return 'text-blue-400 border-blue-400/30 bg-blue-400/10 shadow-[0_0_20px_rgba(59,130,246,0.3)]';
-      case 'common': return 'text-gray-300 border-gray-300/30 bg-gray-300/10';
-      default: return 'text-gray-300 border-gray-300/30 bg-gray-300/10';
     }
   };
 
@@ -232,8 +251,8 @@ export default function PublicShowcase() {
                   transition={{ delay: 0.4 + position * 0.1 }}
                   className={`relative rounded-2xl p-8 text-center min-h-[400px] flex flex-col items-center justify-center transition-all duration-500 hover:scale-105 ${
                     showcasePlayer 
-                      ? getRarityColor(showcasePlayer.player.rarity)
-                      : 'border-gray-600 bg-gray-600/10 border'
+                      ? `bg-gradient-to-br ${rarityColors[showcasePlayer.player.rarity]} ${rarityBorder[showcasePlayer.player.rarity]} border-4 ${rarityGlow[showcasePlayer.player.rarity]}`
+                      : 'border-gray-600 bg-gray-600/10 border-4'
                   }`}
                 >
                   {/* Position Badge */}
@@ -246,7 +265,7 @@ export default function PublicShowcase() {
                     <>
                       {/* Player Image Placeholder */}
                       <div className="w-32 h-32 bg-gradient-to-br from-white/20 to-white/5 rounded-full mb-6 flex items-center justify-center border-2 border-current">
-                        <Users className="w-16 h-16 text-current opacity-60" />
+                        <Users className="w-16 h-16 text-white opacity-60" />
                       </div>
 
                       {/* Player Info */}
@@ -255,32 +274,27 @@ export default function PublicShowcase() {
                           {showcasePlayer.player.name}
                         </h3>
                         
-                        <div className="text-lg text-gray-300 mb-4">
+                        <div className="text-lg text-white/80 mb-4">
                           {showcasePlayer.player.team}
                         </div>
 
                         <div className="bg-black/30 rounded-lg p-4 space-y-3">
                           <div className="flex justify-between items-center">
-                            <span className="text-gray-300">Overall Rating</span>
-                            <span className="text-3xl font-bold text-yellow-400">
+                            <span className="text-white/80">Overall Rating</span>
+                            <span className="text-3xl font-bold text-white">
                               {showcasePlayer.player.overall_rating}
                             </span>
                           </div>
                           
                           <div className="flex justify-between items-center">
-                            <span className="text-gray-300">Rarity</span>
-                            <span className={`font-bold text-lg ${
-                              showcasePlayer.player.rarity === 'Super' ? 'text-yellow-300' :
-                              showcasePlayer.player.rarity === 'Epic' ? 'text-purple-400' :
-                              showcasePlayer.player.rarity === 'Rare' ? 'text-blue-400' :
-                              'text-gray-300'
-                            }`}>
+                            <span className="text-white/80">Rarity</span>
+                            <span className={`font-bold text-lg px-2 py-1 rounded ${rarityBadgeStyle[showcasePlayer.player.rarity]}`}>
                               {showcasePlayer.player.rarity}
                             </span>
                           </div>
 
                           <div className="flex justify-between items-center">
-                            <span className="text-gray-300">Region</span>
+                            <span className="text-white/80">Region</span>
                             <span className="text-white font-semibold">
                               {showcasePlayer.player.region}
                             </span>
