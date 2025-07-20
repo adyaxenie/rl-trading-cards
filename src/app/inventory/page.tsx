@@ -339,7 +339,7 @@ export default function Inventory() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="relative z-10 max-w-7xl mx-auto p-6"
+        className="relative z-0 max-w-7xl mx-auto p-6"
       >
         <div className="flex items-center justify-center">
           <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-2 flex gap-2">
@@ -375,7 +375,7 @@ export default function Inventory() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="relative z-10 max-w-7xl mx-auto p-6"
+          className="relative z-0 max-w-7xl mx-auto p-6"
         >
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:border-blue-400/30 transition-all duration-300">
@@ -443,7 +443,7 @@ export default function Inventory() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="relative z-10 max-w-7xl mx-auto p-6"
+          className="relative z-0 max-w-7xl mx-auto p-6"
         >
           <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-8 mb-8">
             <div className="flex items-center justify-between mb-6">
@@ -525,7 +525,7 @@ export default function Inventory() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="relative z-10 max-w-7xl mx-auto px-6 mb-6"
+        className="relative z-0 max-w-7xl mx-auto px-6 mb-6"
       >
         <div className="flex flex-wrap gap-4 items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -564,7 +564,7 @@ export default function Inventory() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6 }}
-        className="relative z-10 max-w-7xl mx-auto px-6 pb-12"
+        className="relative z-0 max-w-7xl mx-auto px-6 pb-12"
       >
         {inventory?.length === 0 || inventory === undefined ? (
           <div className="text-center py-12">

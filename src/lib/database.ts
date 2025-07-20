@@ -28,17 +28,17 @@ export async function getDb(): Promise<mysql.Pool> {
     pool = mysql.createPool(dbConfig);
     
     // Add connection event listeners for debugging
-    pool.on('connection', (connection) => {
-      console.log(`New connection established as id ${connection.threadId}`);
-    });
+    // pool.on('connection', (connection) => {
+    //   console.log(`New connection established as id ${connection.threadId}`);
+    // });
     
-    pool.on('acquire', (connection) => {
-      console.log(`Connection ${connection.threadId} acquired`);
-    });
+    // pool.on('acquire', (connection) => {
+    //   console.log(`Connection ${connection.threadId} acquired`);
+    // });
     
-    pool.on('release', (connection) => {
-      console.log(`Connection ${connection.threadId} released`);
-    });
+    // pool.on('release', (connection) => {
+    //   console.log(`Connection ${connection.threadId} released`);
+    // });
   }
   return pool;
 }
@@ -78,137 +78,6 @@ export async function executeQuerySimple<T = any>(
   } catch (error) {
     console.error('Query execution error:', error);
     throw error;
-  }
-}
-
-// FIXED: Better transaction handling for sellCard
-export async function sellCard(userId: number, playerId: number, quantity: number): Promise<{
-  success: boolean;
-  creditsEarned: number;
-  newBalance: number;
-  remainingQuantity: number;
-  error?: string;
-}> {
-  const pool = await getDb();
-  let connection: mysql.PoolConnection | null = null;
-  
-  const baseSellValues = {
-    'Super': 250,
-    'Epic': 75,
-    'Rare': 30,
-    'Common': 12
-  };
-
-  function calculateSellValue(rarity: keyof typeof baseSellValues, overallRating: number): number {
-    const baseValue = baseSellValues[rarity];
-    let multiplier = 1.0;
-    
-    if (overallRating >= 95) multiplier = 2.0;
-    else if (overallRating >= 90) multiplier = 1.75;
-    else if (overallRating >= 85) multiplier = 1.5;
-    else if (overallRating >= 80) multiplier = 1.25;
-    else if (overallRating >= 75) multiplier = 1.1;
-    
-    return Math.floor(baseValue * multiplier);
-  }
-
-  try {
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-
-    // Check if user owns this card and has enough quantity
-    const [userCardRows] = await connection.execute(`
-      SELECT uc.quantity, p.rarity, p.name, p.overall_rating
-      FROM user_cards uc
-      JOIN players p ON uc.player_id = p.id
-      WHERE uc.user_id = ? AND uc.player_id = ?
-    `, [userId, playerId]);
-
-    const userCard = (userCardRows as any[])[0];
-    
-    if (!userCard) {
-      await connection.rollback();
-      return { 
-        success: false, 
-        creditsEarned: 0, 
-        newBalance: 0, 
-        remainingQuantity: 0,
-        error: 'Card not found in collection' 
-      };
-    }
-
-    if (userCard.quantity < quantity) {
-      await connection.rollback();
-      return { 
-        success: false, 
-        creditsEarned: 0, 
-        newBalance: 0, 
-        remainingQuantity: userCard.quantity,
-        error: `You only have ${userCard.quantity} copies of this card` 
-      };
-    }
-
-    // Calculate credits to award
-    const sellValue = calculateSellValue(userCard.rarity, userCard.overall_rating);
-    const totalCredits = sellValue * quantity;
-    const remainingQuantity = userCard.quantity - quantity;
-
-    // Update or remove cards from user's collection
-    if (remainingQuantity <= 0) {
-      await connection.execute(`
-        DELETE FROM user_cards 
-        WHERE user_id = ? AND player_id = ?
-      `, [userId, playerId]);
-    } else {
-      await connection.execute(`
-        UPDATE user_cards 
-        SET quantity = ? 
-        WHERE user_id = ? AND player_id = ?
-      `, [remainingQuantity, userId, playerId]);
-    }
-
-    // Get current credits
-    const [creditRows] = await connection.execute('SELECT credits FROM users WHERE id = ?', [userId]);
-    const currentCredits = (creditRows as any[])[0]?.credits || 0;
-    const newCredits = currentCredits + totalCredits;
-    
-    // Update user credits
-    await connection.execute('UPDATE users SET credits = ?, last_credit_earn = NOW() WHERE id = ?', [newCredits, userId]);
-
-    // Record the transaction
-    await connection.execute(`
-      INSERT INTO card_sales (user_id, player_id, quantity_sold, credits_earned, sale_date)
-      VALUES (?, ?, ?, ?, NOW())
-    `, [userId, playerId, quantity, totalCredits]);
-
-    // Commit transaction
-    await connection.commit();
-
-    return {
-      success: true,
-      creditsEarned: totalCredits,
-      newBalance: newCredits,
-      remainingQuantity: Math.max(0, remainingQuantity)
-    };
-
-  } catch (error) {
-    // Rollback on error
-    if (connection) {
-      await connection.rollback();
-    }
-    console.error('Error in sellCard:', error);
-    return { 
-      success: false, 
-      creditsEarned: 0, 
-      newBalance: 0, 
-      remainingQuantity: 0,
-      error: 'Failed to sell card' 
-    };
-  } finally {
-    // CRITICAL: Always release the connection
-    if (connection) {
-      connection.release();
-    }
   }
 }
 
@@ -283,25 +152,6 @@ export interface UserCard {
   quantity: number;
   first_obtained: Date;
   player: Player;
-}
-
-// Update all other functions to use executeQuerySimple for automatic connection handling
-export async function createUser(name: string, email: string): Promise<User> {
-  try {
-    const [result] = await executeQuerySimple(`
-      INSERT INTO users (username, email, credits, last_credit_earn, total_packs_opened)
-      VALUES (?, ?, 3500, NOW(), 0)
-    `, [name, email]);
-    
-    const insertResult = result as any;
-    const userId = insertResult.insertId;
-    
-    const [newUser] = await executeQuerySimple('SELECT * FROM users WHERE id = ?', [userId]);
-    return (newUser as any[])[0];
-  } catch (error) {
-    console.error('Error in createUser:', error);
-    throw error;
-  }
 }
 
 export async function getUserCredits(userId: number): Promise<{ credits: number; last_credit_earn: Date }> {
@@ -406,38 +256,6 @@ export async function getRandomCards(count: number = 5, packType: string = 'stan
     return selectedCards;
   } catch (error) {
     console.error('Error in getRandomCards:', error);
-    throw error;
-  }
-}
-
-export async function addCardsToUser(userId: number, cards: Player[]): Promise<void> {
-  try {
-    for (const card of cards) {
-      await executeQuerySimple(`
-        INSERT INTO user_cards (user_id, player_id, quantity) 
-        VALUES (?, ?, 1) 
-        ON DUPLICATE KEY UPDATE quantity = quantity + 1
-      `, [userId, card.id]);
-    }
-  } catch (error) {
-    console.error('Error in addCardsToUser:', error);
-    throw error;
-  }
-}
-
-export async function recordPackOpening(userId: number, creditsSpent: number, cards: Player[], packType: string = 'Standard'): Promise<void> {
-  try {
-    await executeQuerySimple(`
-      INSERT INTO pack_openings (user_id, pack_type, credits_spent, cards_obtained) 
-      VALUES (?, ?, ?, ?)
-    `, [userId, packType, creditsSpent, JSON.stringify(cards.map(c => c.id))]);
-    
-    // Update total packs opened
-    await executeQuerySimple(`
-      UPDATE users SET total_packs_opened = total_packs_opened + 1 WHERE id = ?
-    `, [userId]);
-  } catch (error) {
-    console.error('Error in recordPackOpening:', error);
     throw error;
   }
 }
@@ -1203,3 +1021,631 @@ export async function getUserLeaderboardStats(userId: number): Promise<{
   }
 }
 
+// Add these interfaces and functions to your database.ts file
+
+export interface Task {
+  id: number;
+  title: string;
+  description: string;
+  task_type: 'collection' | 'packs' | 'cards' | 'selling' | 'rating' | 'showcase';
+  target_value: number;
+  reward_credits: number;
+  difficulty: 'easy' | 'medium' | 'hard' | 'expert';
+  is_repeatable: boolean;
+  category: string;
+  created_at: Date;
+}
+
+export interface UserTask {
+  id: number;
+  user_id: number;
+  task_id: number;
+  progress: number;
+  completed: boolean;
+  completed_at: Date | null;
+  claimed: boolean;
+  claimed_at: Date | null;
+  task: Task;
+}
+
+export interface DailyClaim {
+  id: number;
+  user_id: number;
+  claim_date: Date;
+  credits_claimed: number;
+  claimed_at: Date;
+}
+
+// Daily claims functions
+export async function canClaimDailyCredits(userId: number): Promise<boolean> {
+  try {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    const [rows] = await executeQuerySimple(
+      'SELECT id FROM daily_claims WHERE user_id = ? AND claim_date = ?',
+      [userId, today]
+    );
+    
+    return (rows as any[]).length === 0;
+  } catch (error) {
+    console.error('Error checking daily claim eligibility:', error);
+    return false;
+  }
+}
+
+export async function claimDailyCredits(userId: number): Promise<{
+  success: boolean;
+  credits: number;
+  newBalance: number;
+  error?: string;
+}> {
+  const pool = await getDb();
+  let connection: mysql.PoolConnection | null = null;
+  
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Check if already claimed today
+    const [existingClaim] = await connection.execute(
+      'SELECT id FROM daily_claims WHERE user_id = ? AND claim_date = ?',
+      [userId, today]
+    );
+
+    if ((existingClaim as any[]).length > 0) {
+      await connection.rollback();
+      return {
+        success: false,
+        credits: 0,
+        newBalance: 0,
+        error: 'Already claimed today'
+      };
+    }
+
+    const dailyCredits = 250;
+
+    // Get current credits
+    const [userCredits] = await connection.execute(
+      'SELECT credits FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    const currentCredits = (userCredits as any[])[0]?.credits || 0;
+    const newCredits = currentCredits + dailyCredits;
+
+    // Update user credits
+    await connection.execute(
+      'UPDATE users SET credits = ?, last_daily_claim = ? WHERE id = ?',
+      [newCredits, today, userId]
+    );
+
+    // Record the daily claim
+    await connection.execute(
+      'INSERT INTO daily_claims (user_id, claim_date, credits_claimed) VALUES (?, ?, ?)',
+      [userId, today, dailyCredits]
+    );
+
+    await connection.commit();
+
+    return {
+      success: true,
+      credits: dailyCredits,
+      newBalance: newCredits
+    };
+
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('Error claiming daily credits:', error);
+    return {
+      success: false,
+      credits: 0,
+      newBalance: 0,
+      error: 'Failed to claim daily credits'
+    };
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+}
+
+// Task functions
+export async function getUserTasks(userId: number): Promise<UserTask[]> {
+  try {
+    // First check if user has any tasks
+    const [existingTasks] = await executeQuerySimple(
+      'SELECT COUNT(*) as count FROM user_tasks WHERE user_id = ?',
+      [userId]
+    );
+
+    const taskCount = (existingTasks as any[])[0]?.count || 0;
+
+    // If no tasks exist, initialize them
+    if (taskCount === 0) {
+      console.log(`Initializing tasks for user ${userId}`);
+      await initializeUserTasks(userId);
+    }
+
+    // Now get the tasks
+    const [rows] = await executeQuerySimple(`
+      SELECT 
+        ut.*,
+        t.title,
+        t.description,
+        t.task_type,
+        t.target_value,
+        t.reward_credits,
+        t.difficulty,
+        t.is_repeatable,
+        t.category,
+        t.created_at as task_created_at
+      FROM user_tasks ut
+      JOIN tasks t ON ut.task_id = t.id
+      WHERE ut.user_id = ?
+      ORDER BY 
+        ut.completed ASC,
+        ut.claimed ASC,
+        t.difficulty ASC,
+        t.created_at ASC
+    `, [userId]);
+
+    return (rows as any[]).map(row => ({
+      id: row.id,
+      user_id: row.user_id,
+      task_id: row.task_id,
+      progress: row.progress,
+      completed: row.completed,
+      completed_at: row.completed_at,
+      claimed: row.claimed,
+      claimed_at: row.claimed_at,
+      task: {
+        id: row.task_id,
+        title: row.title,
+        description: row.description,
+        task_type: row.task_type,
+        target_value: row.target_value,
+        reward_credits: row.reward_credits,
+        difficulty: row.difficulty,
+        is_repeatable: row.is_repeatable,
+        category: row.category,
+        created_at: row.task_created_at
+      }
+    }));
+  } catch (error) {
+    console.error('Error getting user tasks:', error);
+    return [];
+  }
+}
+
+export async function initializeUserTasks(userId: number): Promise<void> {
+  try {
+    // Get all non-repeatable tasks
+    const [allTasks] = await executeQuerySimple(
+      'SELECT id FROM tasks WHERE is_repeatable = FALSE'
+    );
+
+    const tasks = allTasks as any[];
+    
+    // Insert user_tasks entries for all tasks
+    for (const task of tasks) {
+      await executeQuerySimple(`
+        INSERT IGNORE INTO user_tasks (user_id, task_id, progress) 
+        VALUES (?, ?, 0)
+      `, [userId, task.id]);
+    }
+  } catch (error) {
+    console.error('Error initializing user tasks:', error);
+  }
+}
+
+export async function updateTaskProgress(
+  userId: number, 
+  taskType: string, 
+  increment: number = 1
+): Promise<void> {
+  try {
+    // Update all non-completed tasks of this type
+    await executeQuerySimple(`
+      UPDATE user_tasks ut
+      JOIN tasks t ON ut.task_id = t.id
+      SET ut.progress = LEAST(ut.progress + ?, t.target_value),
+          ut.completed = CASE 
+            WHEN ut.progress + ? >= t.target_value THEN TRUE 
+            ELSE ut.completed 
+          END,
+          ut.completed_at = CASE 
+            WHEN ut.progress + ? >= t.target_value AND ut.completed = FALSE THEN NOW() 
+            ELSE ut.completed_at 
+          END,
+          ut.updated_at = NOW()
+      WHERE ut.user_id = ? 
+        AND t.task_type = ? 
+        AND ut.completed = FALSE
+    `, [increment, increment, increment, userId, taskType]);
+
+    // Handle repeatable daily tasks
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Check if user has today's daily tasks
+    const [dailyTasks] = await executeQuerySimple(`
+      SELECT t.id FROM tasks t
+      WHERE t.task_type = ? AND t.is_repeatable = TRUE AND t.category = 'daily'
+    `, [taskType]);
+
+    for (const task of dailyTasks as any[]) {
+      // Check if user has this daily task for today
+      const [existingDaily] = await executeQuerySimple(`
+        SELECT id FROM user_tasks 
+        WHERE user_id = ? AND task_id = ? AND DATE(created_at) = ?
+      `, [userId, task.id, today]);
+
+      if ((existingDaily as any[]).length === 0) {
+        // Create today's daily task
+        await executeQuerySimple(`
+          INSERT INTO user_tasks (user_id, task_id, progress) 
+          VALUES (?, ?, 0)
+        `, [userId, task.id]);
+      }
+
+      // Update progress
+      await executeQuerySimple(`
+        UPDATE user_tasks ut
+        JOIN tasks t ON ut.task_id = t.id
+        SET ut.progress = LEAST(ut.progress + ?, t.target_value),
+            ut.completed = CASE 
+              WHEN ut.progress + ? >= t.target_value THEN TRUE 
+              ELSE ut.completed 
+            END,
+            ut.completed_at = CASE 
+              WHEN ut.progress + ? >= t.target_value AND ut.completed = FALSE THEN NOW() 
+              ELSE ut.completed_at 
+            END,
+            ut.updated_at = NOW()
+        WHERE ut.user_id = ? 
+          AND ut.task_id = ?
+          AND DATE(ut.created_at) = ?
+          AND ut.completed = FALSE
+      `, [increment, increment, increment, userId, task.id, today]);
+    }
+  } catch (error) {
+    console.error('Error updating task progress:', error);
+  }
+}
+
+export async function claimTaskReward(userId: number, userTaskId: number): Promise<{
+  success: boolean;
+  credits: number;
+  newBalance: number;
+  error?: string;
+}> {
+  const pool = await getDb();
+  let connection: mysql.PoolConnection | null = null;
+  
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // Get the user task and verify it's completed and not claimed
+    const [taskRows] = await connection.execute(`
+      SELECT ut.*, t.reward_credits, t.title
+      FROM user_tasks ut
+      JOIN tasks t ON ut.task_id = t.id
+      WHERE ut.id = ? AND ut.user_id = ? AND ut.completed = TRUE AND ut.claimed = FALSE
+    `, [userTaskId, userId]);
+
+    const userTask = (taskRows as any[])[0];
+    if (!userTask) {
+      await connection.rollback();
+      return {
+        success: false,
+        credits: 0,
+        newBalance: 0,
+        error: 'Task not found or already claimed'
+      };
+    }
+
+    // Get current credits
+    const [userCredits] = await connection.execute(
+      'SELECT credits FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    const currentCredits = (userCredits as any[])[0]?.credits || 0;
+    const newCredits = currentCredits + userTask.reward_credits;
+
+    // Update user credits
+    await connection.execute(
+      'UPDATE users SET credits = ? WHERE id = ?',
+      [newCredits, userId]
+    );
+
+    // Mark task as claimed
+    await connection.execute(
+      'UPDATE user_tasks SET claimed = TRUE, claimed_at = NOW() WHERE id = ?',
+      [userTaskId]
+    );
+
+    // Record task completion
+    await connection.execute(
+      'INSERT INTO task_completions (user_id, task_id, credits_earned) VALUES (?, ?, ?)',
+      [userId, userTask.task_id, userTask.reward_credits]
+    );
+
+    await connection.commit();
+
+    return {
+      success: true,
+      credits: userTask.reward_credits,
+      newBalance: newCredits
+    };
+
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('Error claiming task reward:', error);
+    return {
+      success: false,
+      credits: 0,
+      newBalance: 0,
+      error: 'Failed to claim task reward'
+    };
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+}
+
+export async function getUnclaimedTasksCount(userId: number): Promise<number> {
+  try {
+    const [rows] = await executeQuerySimple(
+      'SELECT COUNT(*) as count FROM user_tasks WHERE user_id = ? AND completed = TRUE AND claimed = FALSE',
+      [userId]
+    );
+    
+    return (rows as any[])[0]?.count || 0;
+  } catch (error) {
+    console.error('Error getting unclaimed tasks count:', error);
+    return 0;
+  }
+}
+
+
+// Update existing functions to trigger task progress
+
+// Override the existing recordPackOpening function
+export async function recordPackOpening(userId: number, creditsSpent: number, cards: Player[], packType: string = 'Standard'): Promise<void> {
+  try {
+    await executeQuerySimple(`
+      INSERT INTO pack_openings (user_id, pack_type, credits_spent, cards_obtained) 
+      VALUES (?, ?, ?, ?)
+    `, [userId, packType, creditsSpent, JSON.stringify(cards.map(c => c.id))]);
+    
+    // Update total packs opened
+    await executeQuerySimple(`
+      UPDATE users SET total_packs_opened = total_packs_opened + 1 WHERE id = ?
+    `, [userId]);
+
+    // Update task progress
+    await updateTaskProgress(userId, 'packs', 1);
+  } catch (error) {
+    console.error('Error in recordPackOpening:', error);
+    throw error;
+  }
+}
+
+// Override the existing addCardsToUser function
+export async function addCardsToUser(userId: number, cards: Player[]): Promise<void> {
+  try {
+    const cardCounts: { [rarity: string]: number } = {};
+    
+    for (const card of cards) {
+      await executeQuerySimple(`
+        INSERT INTO user_cards (user_id, player_id, quantity) 
+        VALUES (?, ?, 1) 
+        ON DUPLICATE KEY UPDATE quantity = quantity + 1
+      `, [userId, card.id]);
+
+      // Count cards by rarity for task progress
+      cardCounts[card.rarity] = (cardCounts[card.rarity] || 0) + 1;
+    }
+
+    // Update collection task progress
+    const [uniqueCards] = await executeQuerySimple(
+      'SELECT COUNT(DISTINCT player_id) as count FROM user_cards WHERE user_id = ?',
+      [userId]
+    );
+    
+    const uniqueCardCount = (uniqueCards as any[])[0]?.count || 0;
+    
+    // Update collection progress to current total
+    await executeQuerySimple(`
+      UPDATE user_tasks ut
+      JOIN tasks t ON ut.task_id = t.id
+      SET ut.progress = LEAST(?, t.target_value),
+          ut.completed = CASE 
+            WHEN ? >= t.target_value THEN TRUE 
+            ELSE ut.completed 
+          END,
+          ut.completed_at = CASE 
+            WHEN ? >= t.target_value AND ut.completed = FALSE THEN NOW() 
+            ELSE ut.completed_at 
+          END,
+          ut.updated_at = NOW()
+      WHERE ut.user_id = ? 
+        AND t.task_type = 'collection'
+        AND ut.completed = FALSE
+    `, [uniqueCardCount, uniqueCardCount, uniqueCardCount, userId]);
+
+    // Update card-specific tasks
+    for (const [rarity, count] of Object.entries(cardCounts)) {
+      if (rarity === 'Rare' || rarity === 'Epic' || rarity === 'Super') {
+        await updateTaskProgress(userId, 'cards', count);
+      }
+    }
+  } catch (error) {
+    console.error('Error in addCardsToUser:', error);
+    throw error;
+  }
+}
+
+// Update the existing createUser function to initialize tasks
+export async function createUser(name: string, email: string): Promise<User> {
+  try {
+    const [result] = await executeQuerySimple(`
+      INSERT INTO users (username, email, credits, last_credit_earn, total_packs_opened)
+      VALUES (?, ?, 3500, NOW(), 0)
+    `, [name, email]);
+    
+    const insertResult = result as any;
+    const userId = insertResult.insertId;
+    
+    // Initialize user tasks
+    await initializeUserTasks(userId);
+    
+    const [newUser] = await executeQuerySimple('SELECT * FROM users WHERE id = ?', [userId]);
+    return (newUser as any[])[0];
+  } catch (error) {
+    console.error('Error in createUser:', error);
+    throw error;
+  }
+}
+
+// Update the sellCard function to include task progress
+export async function sellCard(userId: number, playerId: number, quantity: number): Promise<{
+  success: boolean;
+  creditsEarned: number;
+  newBalance: number;
+  remainingQuantity: number;
+  error?: string;
+}> {
+  const pool = await getDb();
+  let connection: mysql.PoolConnection | null = null;
+  
+  const baseSellValues = {
+    'Super': 500,    // Increased from 250
+    'Epic': 150,     // Increased from 75
+    'Rare': 60,      // Increased from 30
+    'Common': 25     // Increased from 12
+  };
+
+  function calculateSellValue(rarity: keyof typeof baseSellValues, overallRating: number): number {
+    const baseValue = baseSellValues[rarity];
+    let multiplier = 1.0;
+    
+    if (overallRating >= 95) multiplier = 2.0;
+    else if (overallRating >= 90) multiplier = 1.75;
+    else if (overallRating >= 85) multiplier = 1.5;
+    else if (overallRating >= 80) multiplier = 1.25;
+    else if (overallRating >= 75) multiplier = 1.1;
+    
+    return Math.floor(baseValue * multiplier);
+  }
+
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // Check if user owns this card and has enough quantity
+    const [userCardRows] = await connection.execute(`
+      SELECT uc.quantity, p.rarity, p.name, p.overall_rating
+      FROM user_cards uc
+      JOIN players p ON uc.player_id = p.id
+      WHERE uc.user_id = ? AND uc.player_id = ?
+    `, [userId, playerId]);
+
+    const userCard = (userCardRows as any[])[0];
+    
+    if (!userCard) {
+      await connection.rollback();
+      return { 
+        success: false, 
+        creditsEarned: 0, 
+        newBalance: 0, 
+        remainingQuantity: 0,
+        error: 'Card not found in collection' 
+      };
+    }
+
+    if (userCard.quantity < quantity) {
+      await connection.rollback();
+      return { 
+        success: false, 
+        creditsEarned: 0, 
+        newBalance: 0, 
+        remainingQuantity: userCard.quantity,
+        error: `You only have ${userCard.quantity} copies of this card` 
+      };
+    }
+
+    // Calculate credits to award
+    const sellValue = calculateSellValue(userCard.rarity, userCard.overall_rating);
+    const totalCredits = sellValue * quantity;
+    const remainingQuantity = userCard.quantity - quantity;
+
+    // Update or remove cards from user's collection
+    if (remainingQuantity <= 0) {
+      await connection.execute(`
+        DELETE FROM user_cards 
+        WHERE user_id = ? AND player_id = ?
+      `, [userId, playerId]);
+    } else {
+      await connection.execute(`
+        UPDATE user_cards 
+        SET quantity = ? 
+        WHERE user_id = ? AND player_id = ?
+      `, [remainingQuantity, userId, playerId]);
+    }
+
+    // Get current credits
+    const [creditRows] = await connection.execute('SELECT credits FROM users WHERE id = ?', [userId]);
+    const currentCredits = (creditRows as any[])[0]?.credits || 0;
+    const newCredits = currentCredits + totalCredits;
+    
+    // Update user credits
+    await connection.execute('UPDATE users SET credits = ?, last_credit_earn = NOW() WHERE id = ?', [newCredits, userId]);
+
+    // Record the transaction
+    await connection.execute(`
+      INSERT INTO card_sales (user_id, player_id, quantity_sold, credits_earned, sale_date)
+      VALUES (?, ?, ?, ?, NOW())
+    `, [userId, playerId, quantity, totalCredits]);
+
+    // Commit transaction
+    await connection.commit();
+
+    // Update task progress (outside transaction to avoid deadlock)
+    await updateTaskProgress(userId, 'selling', quantity);
+
+    return {
+      success: true,
+      creditsEarned: totalCredits,
+      newBalance: newCredits,
+      remainingQuantity: Math.max(0, remainingQuantity)
+    };
+
+  } catch (error) {
+    // Rollback on error
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('Error in sellCard:', error);
+    return { 
+      success: false, 
+      creditsEarned: 0, 
+      newBalance: 0, 
+      remainingQuantity: 0,
+      error: 'Failed to sell card' 
+    };
+  } finally {
+    // CRITICAL: Always release the connection
+    if (connection) {
+      connection.release();
+    }
+  }
+}

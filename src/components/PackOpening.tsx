@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSession, signIn } from 'next-auth/react';
 import { ExpandableCard } from './ExpandableCard';
 import { Player } from '@/lib/database';
+import { PACK_TYPES } from '@/lib/pack-config';
 import { User } from 'lucide-react';
 
 interface PackOpeningProps {
@@ -17,45 +18,46 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
   const [showCards, setShowCards] = useState<boolean>(false);
   const [selectedPack, setSelectedPack] = useState<string>('standard');
 
+  // Use the centralized pack config, but keep your original pack type structure
   const packTypes = {
     standard: {
-      name: 'Standard Pack',
-      cost: 500,
-      description: '5 cards with standard odds - broad collection building',
+      name: PACK_TYPES.standard.name,
+      cost: PACK_TYPES.standard.price,
+      description: PACK_TYPES.standard.description,
       foilType: 'silver',
       odds: {
-        'Super': '1.5%',
-        'Epic': '8%', 
-        'Rare': '28%',
-        'Common': '62.5%'
+        'Super': `${PACK_TYPES.standard.rarity_rates.super}%`,
+        'Epic': `${PACK_TYPES.standard.rarity_rates.epic}%`, 
+        'Rare': `${PACK_TYPES.standard.rarity_rates.rare}%`,
+        'Common': `${PACK_TYPES.standard.rarity_rates.common}%`
       },
-      efficiency: '0.3 Super/1000 credits',
+      efficiency: '0.15 Super/1000 credits',
       recommendation: 'Best for early collection building'
     },
     premium: {
-      name: 'Premium Pack',
-      cost: 1000,
-      description: '5 cards with boosted rates - efficient Super hunting!',
+      name: PACK_TYPES.premium.name,
+      cost: PACK_TYPES.premium.price,
+      description: PACK_TYPES.premium.description,
       foilType: 'gold',
       odds: {
-        'Super': '6%',
-        'Epic': '22%',
-        'Rare': '35%', 
-        'Common': '37%'
+        'Super': `${PACK_TYPES.premium.rarity_rates.super}%`,
+        'Epic': `${PACK_TYPES.premium.rarity_rates.epic}%`,
+        'Rare': `${PACK_TYPES.premium.rarity_rates.rare}%`, 
+        'Common': `${PACK_TYPES.premium.rarity_rates.common}%`
       },
       efficiency: '0.6 Super/1000 credits',
       recommendation: 'Optimal rate per credit'
     },
     ultimate: {
-      name: 'Ultimate Pack',
-      cost: 2000,
-      description: 'Premium efficiency - best for completing Super collection!',
+      name: PACK_TYPES.ultimate.name,
+      cost: PACK_TYPES.ultimate.price,
+      description: PACK_TYPES.ultimate.description,
       foilType: 'black',
       odds: {
-        'Super': '15%',
-        'Epic': '40%',
-        'Rare': '35%', 
-        'Common': '10%'
+        'Super': `${PACK_TYPES.ultimate.rarity_rates.super}%`,
+        'Epic': `${PACK_TYPES.ultimate.rarity_rates.epic}%`,
+        'Rare': `${PACK_TYPES.ultimate.rarity_rates.rare}%`, 
+        'Common': `${PACK_TYPES.ultimate.rarity_rates.common}%`
       },
       efficiency: '0.75 Super/1000 credits',
       recommendation: 'Best for targeting high-rarity cards'
@@ -251,18 +253,13 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
               {pack.recommendation}
             </div>
             
-            {/* Efficiency indicator */}
-            {/* <div className="text-xs text-green-300 mb-2">
-              Efficiency: {pack.efficiency}
-            </div>
-             */}
             {!canAfford && session && (
               <div className="text-xs text-red-400 mb-2">
                 Need {pack.cost - userCredits} more credits
               </div>
             )}
             
-            {/* <div className="mt-2 text-xs">
+            <div className="mt-2 text-xs">
               <div className="font-semibold mb-1">Drop Rates:</div>
               <div className="grid grid-cols-2 gap-1">
                 {Object.entries(pack.odds).map(([rarity, rate]) => (
@@ -277,7 +274,7 @@ export default function PackOpening({ onPackOpened, userCredits }: PackOpeningPr
                   </div>
                 ))}
               </div>
-            </div> */}
+            </div>
           </div>
         </motion.div>
       </motion.div>

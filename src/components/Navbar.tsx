@@ -1,27 +1,115 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Coins, Timer, User, Menu, X, Package, Trophy, Settings } from 'lucide-react';
+import { Coins, Timer, User, Menu, X, Package, Trophy, Settings, CheckCircle, Clock, Gift, Target } from 'lucide-react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-interface NavbarProps {
-  credits: number;
-  timeUntilNext: number;
+interface Task {
+  id: number;
+  user_id: number;
+  task_id: number;
+  progress: number;
+  completed: boolean;
+  completed_at: Date | null;
+  claimed: boolean;
+  claimed_at: Date | null;
+  task: {
+    id: number;
+    title: string;
+    description: string;
+    task_type: string;
+    target_value: number;
+    reward_credits: number;
+    difficulty: 'easy' | 'medium' | 'hard' | 'expert';
+    is_repeatable: boolean;
+    category: string;
+  };
 }
 
-export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
+interface NavbarProps {
+  credits: number;
+  timeUntilNext?: number;
+}
+
+export default function Navbar({ credits = 0, timeUntilNext }: NavbarProps) {
   const { data: session, status } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [tasksDropdownOpen, setTasksDropdownOpen] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [unclaimedCount, setUnclaimedCount] = useState(0);
+  const [canClaimDaily, setCanClaimDaily] = useState(false);
+  const [dailyTimeUntilNext, setDailyTimeUntilNext] = useState(0);
+  const [isClaimingDaily, setIsClaimingDaily] = useState(false);
+  const [isClaimingTask, setIsClaimingTask] = useState<number | null>(null);
   const pathname = usePathname();
 
   const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'easy': return 'text-green-400 border-green-400/30';
+      case 'medium': return 'text-yellow-400 border-yellow-400/30';
+      case 'hard': return 'text-orange-400 border-orange-400/30';
+      case 'expert': return 'text-red-400 border-red-400/30';
+      default: return 'text-gray-400 border-gray-400/30';
+    }
+  };
+
+  // Load tasks and daily claim status
+  useEffect(() => {
+    if (session?.user) {
+      loadTasks();
+      loadDailyClaimStatus();
+      
+      const interval = setInterval(() => {
+        loadDailyClaimStatus();
+      }, 30000); // Check every 30 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [session]);
+
+  const loadTasks = async () => {
+    try {
+      const response = await fetch('/api/tasks');
+      if (response.ok) {
+        const data = await response.json();
+        setTasks(data.tasks);
+        setUnclaimedCount(data.unclaimedCount);
+        console.log('Loaded tasks:', data.tasks);
+      }
+      else {
+        console.error('Failed to load tasks:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+    }
+  };
+
+  const loadDailyClaimStatus = async () => {
+    try {
+      const response = await fetch('/api/daily-credits');
+      if (response.ok) {
+        const data = await response.json();
+        setCanClaimDaily(data.canClaim);
+        setDailyTimeUntilNext(data.timeUntilNext);
+      }
+    } catch (error) {
+      console.error('Error loading daily claim status:', error);
+    }
   };
 
   const handleSignIn = () => {
@@ -33,12 +121,63 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
     setUserDropdownOpen(false);
   };
 
+  const handleClaimDaily = async () => {
+    if (isClaimingDaily || !canClaimDaily) return;
+    
+    setIsClaimingDaily(true);
+    try {
+      const response = await fetch('/api/daily-credits', { method: 'POST' });
+      const data = await response.json();
+      
+      if (data.success) {
+        setCanClaimDaily(false);
+        // Trigger a page refresh to update credits
+        window.location.reload();
+      } else {
+        console.error('Failed to claim daily credits:', data.error);
+      }
+    } catch (error) {
+      console.error('Error claiming daily credits:', error);
+    } finally {
+      setIsClaimingDaily(false);
+    }
+  };
+
+  const handleClaimTask = async (userTaskId: number) => {
+    if (isClaimingTask) return;
+    
+    setIsClaimingTask(userTaskId);
+    try {
+      const response = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userTaskId })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        await loadTasks(); // Refresh tasks
+        // Trigger a page refresh to update credits
+        window.location.reload();
+      } else {
+        console.error('Failed to claim task reward:', data.error);
+      }
+    } catch (error) {
+      console.error('Error claiming task reward:', error);
+    } finally {
+      setIsClaimingTask(null);
+    }
+  };
+
   const navItems = [
     { name: 'Packs', href: '/', icon: Package },
     { name: 'Collection', href: '/inventory', icon: User },
     { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
-    // { name: 'Settings', href: '/settings', icon: Settings },
   ];
+
+  const completedTasks = tasks.filter(t => t.completed && !t.claimed);
+  const activeTasks = tasks.filter(t => !t.completed).slice(0, 5); // Show 5 active tasks
 
   return (
     <nav className="relative z-10 bg-black/20 backdrop-blur-sm border-b border-white/10">
@@ -106,32 +245,142 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
             </div>
           </div>
 
-          {/* Right side - Credits, Timer, and User */}
+          {/* Right side - Tasks, Credits, Timer, and User */}
           <div className="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
             <div className="flex items-center space-x-4">
-              {/* Credits */}
+              {/* Tasks Dropdown */}
+              {session && (
+                <div className="relative">
+                  <motion.button
+                    onClick={() => setTasksDropdownOpen(!tasksDropdownOpen)}
+                    className="relative flex items-center space-x-2 bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-purple-400/20 hover:border-purple-400/40 transition-all duration-300"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Target className="w-4 h-4 text-purple-400" />
+                    <span className="font-semibold text-purple-400 text-sm hidden sm:inline">Tasks</span>
+                    {unclaimedCount > 0 && (
+                      <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                        {unclaimedCount}
+                      </div>
+                    )}
+                  </motion.button>
+
+                  {/* Tasks Dropdown Menu */}
+                  <AnimatePresence>
+                    {tasksDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 top-full mt-2 w-96 bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto"
+                      >
+                        <div className="py-2">
+                          <div className="px-4 py-2 border-b border-white/10">
+                            <h3 className="text-sm font-medium text-white">Tasks & Progression</h3>
+                          </div>
+
+                          {/* Completed Tasks */}
+                          {completedTasks.length > 0 && (
+                            <div className="px-4 py-2 border-b border-white/10">
+                              <h4 className="text-xs font-medium text-green-400 mb-2">Ready to Claim</h4>
+                              {completedTasks.map((task) => (
+                                <div key={task.id} className="flex items-center justify-between py-2 px-2 bg-green-500/10 rounded mb-2">
+                                  <div className="flex-1">
+                                    <p className="text-sm text-white font-medium">{task.task.title}</p>
+                                    <p className="text-xs text-gray-300">{task.task.description}</p>
+                                  </div>
+                                  <button
+                                    onClick={() => handleClaimTask(task.id)}
+                                    disabled={isClaimingTask === task.id}
+                                    className="ml-2 bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white px-3 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1"
+                                  >
+                                    {isClaimingTask === task.id ? (
+                                      <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Gift className="w-3 h-3" />
+                                        <span>{task.task.reward_credits.toLocaleString()}</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Active Tasks */}
+                          <div className="px-4 py-2">
+                            <h4 className="text-xs font-medium text-blue-400 mb-2">Active Tasks</h4>
+                            {activeTasks.length > 0 ? (
+                              activeTasks.map((task) => (
+                                <div key={task.id} className="py-2 px-2 hover:bg-white/5 rounded mb-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <p className="text-sm text-white font-medium">{task.task.title}</p>
+                                      <p className="text-xs text-gray-300">{task.task.description}</p>
+                                      <div className="flex items-center space-x-2 mt-1">
+                                        <div className="bg-gray-700 rounded-full h-2 flex-1 max-w-24">
+                                          <div 
+                                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                                            style={{ width: `${Math.min((task.progress / task.task.target_value) * 100, 100)}%` }}
+                                          />
+                                        </div>
+                                        <span className="text-xs text-gray-400">{task.progress}/{task.task.target_value}</span>
+                                      </div>
+                                    </div>
+                                    <div className="ml-2 text-right">
+                                      <div className={`text-xs px-2 py-1 rounded border ${getDifficultyColor(task.task.difficulty)}`}>
+                                        {task.task.difficulty}
+                                      </div>
+                                      <div className="text-xs text-yellow-400 mt-1">+{task.task.reward_credits.toLocaleString()}</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-xs text-gray-400">No active tasks</p>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {/* Daily Credits */}
               <motion.button
-                onClick={async () => {
-                  try {
-                    const response = await fetch('/api/credits', { method: 'POST' });
-                    const data = await response.json();
-                    if (response.ok) {
-                      // Credits will be updated through the interval in the parent component
-                      window.location.reload(); // Simple refresh for now
-                    } else {
-                      console.log(data.error || 'Credits not ready yet');
-                    }
-                  } catch (error) {
-                    console.error('Error claiming credits:', error);
-                  }
-                }}
-                className="flex items-center space-x-2 bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-yellow-400/20 hover:border-yellow-400/40 transition-all duration-300"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                title="Click to claim credits if available"
+                onClick={handleClaimDaily}
+                disabled={!canClaimDaily || isClaimingDaily}
+                className={`flex items-center space-x-2 backdrop-blur-sm px-3 py-2 rounded-lg border transition-all duration-300 ${
+                  canClaimDaily 
+                    ? 'bg-green-500/20 border-green-400/40 hover:border-green-400/60 cursor-pointer' 
+                    : 'bg-black/30 border-yellow-400/20 hover:border-yellow-400/40 cursor-default'
+                }`}
+                whileHover={canClaimDaily ? { scale: 1.05 } : {}}
+                whileTap={canClaimDaily ? { scale: 0.95 } : {}}
+                title={canClaimDaily ? "Click to claim 250 daily credits!" : `Next claim in ${formatTime(dailyTimeUntilNext)}`}
               >
-                <Coins className="w-4 h-4 text-yellow-400" />
-                <span className="font-semibold text-yellow-400 text-sm">{credits?.toLocaleString() || 0}</span>
+                {canClaimDaily ? (
+                  <>
+                    <Gift className="w-4 h-4 text-green-400" />
+                    <span className="font-semibold text-green-400 text-sm">
+                      {isClaimingDaily ? 'Claiming...' : 'Claim 250'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Coins className="w-4 h-4 text-yellow-400" />
+                    <span className="font-semibold text-yellow-400 text-sm">{credits?.toLocaleString() || 0}</span>
+                    {dailyTimeUntilNext > 0 && (
+                      <span className="text-xs text-gray-400 hidden sm:inline">
+                        ({formatTime(dailyTimeUntilNext)})
+                      </span>
+                    )}
+                  </>
+                )}
               </motion.button>
 
               {/* User Authentication */}
@@ -158,7 +407,7 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
                     </button>
                   </motion.div>
 
-                  {/* Dropdown Menu */}
+                  {/* User Dropdown Menu */}
                   <AnimatePresence>
                     {userDropdownOpen && (
                       <motion.div
@@ -200,11 +449,14 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
         </div>
       </div>
 
-      {/* Click outside to close dropdown */}
-      {userDropdownOpen && (
+      {/* Click outside to close dropdowns */}
+      {(userDropdownOpen || tasksDropdownOpen) && (
         <div
           className="fixed inset-0 z-40"
-          onClick={() => setUserDropdownOpen(false)}
+          onClick={() => {
+            setUserDropdownOpen(false);
+            setTasksDropdownOpen(false);
+          }}
         />
       )}
 
@@ -239,6 +491,27 @@ export default function Navbar({ credits=0, timeUntilNext }: NavbarProps) {
                   </Link>
                 );
               })}
+
+              {/* Mobile Tasks */}
+              {session && completedTasks.length > 0 && (
+                <div className="px-3 py-2 mt-4">
+                  <div className="bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-white/20">
+                    <h4 className="text-sm font-medium text-green-400 mb-2">Ready to Claim</h4>
+                    {completedTasks.slice(0, 3).map((task) => (
+                      <div key={task.id} className="flex items-center justify-between py-1">
+                        <span className="text-xs text-white">{task.task.title}</span>
+                        <button
+                          onClick={() => handleClaimTask(task.id)}
+                          disabled={isClaimingTask === task.id}
+                          className="bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white px-2 py-1 rounded text-xs"
+                        >
+                          {isClaimingTask === task.id ? '...' : task.task.reward_credits}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Mobile Authentication */}
               {session ? (

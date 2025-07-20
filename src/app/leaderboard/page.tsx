@@ -185,7 +185,7 @@ export default function Leaderboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="relative z-10 max-w-7xl mx-auto p-6"
+        className="relative z-0 max-w-7xl mx-auto p-6"
       >
         <div className="text-center mb-8">
           <div className="flex items-center justify-center space-x-3 mb-4">
@@ -252,7 +252,7 @@ export default function Leaderboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="relative z-10 max-w-7xl mx-auto px-6 pb-12"
+        className="relative z-0 max-w-7xl mx-auto px-6 pb-12"
       >
         {/* Top Showcases Tab */}
         {activeTab === 'showcases' && (
