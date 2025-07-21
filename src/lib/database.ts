@@ -143,6 +143,7 @@ export interface User {
   total_packs_opened: number;
   created_at: Date;
   updated_at: Date;
+  last_daily_claim?: Date;
 }
 
 export interface UserCard {
