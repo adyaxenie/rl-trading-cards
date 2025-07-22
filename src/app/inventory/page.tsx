@@ -8,6 +8,7 @@ import { signIn, useSession } from 'next-auth/react';
 import { ExpandableCard } from '@/components/ExpandableCard';
 import Navbar from '@/components/Navbar';
 import { BackgroundBeams } from '@/components/BackgroundBeams';
+import Footer from '@/components/Footer';
 
 // Update interfaces to match your database structure
 interface Player {
@@ -579,7 +580,7 @@ export default function Inventory() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 mb-20">
             {filteredAndSortedInventory().map((item, index) => (
               <motion.div
                 key={`${item.player.id}-${item.quantity}`}
@@ -628,6 +629,7 @@ export default function Inventory() {
           </div>
         )}
       </motion.div>
+      <Footer />
     </div>
   );
 }

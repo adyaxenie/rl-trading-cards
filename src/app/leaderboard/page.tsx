@@ -16,6 +16,7 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import { BackgroundBeams } from '@/components/BackgroundBeams';
 import { useSession } from 'next-auth/react';
+import Footer from '@/components/Footer';
 
 interface Player {
   id: number;
@@ -279,7 +280,7 @@ export default function Leaderboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="relative z-0 max-w-7xl mx-auto px-6 pb-12"
+        className="relative z-0 max-w-7xl mx-auto px-6 pb-12 mb-20"
       >
         {/* Top Showcases Tab */}
         {activeTab === 'showcases' && (
@@ -313,7 +314,7 @@ export default function Leaderboard() {
                         <th className="px-6 py-4 text-center text-sm font-semibold text-white">🥇 Position 1</th>
                         <th className="px-6 py-4 text-center text-sm font-semibold text-white">🥈 Position 2</th>
                         <th className="px-6 py-4 text-center text-sm font-semibold text-white">🥉 Position 3</th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold text-white">Collection Stats</th>
+                        {/* <th className="px-6 py-4 text-right text-sm font-semibold text-white">Collection Stats</th> */}
                         <th className="px-6 py-4 text-center text-sm font-semibold text-white">Action</th>
                       </tr>
                     </thead>
@@ -398,7 +399,7 @@ export default function Leaderboard() {
                                 </td>
                               );
                             })}
-                            <td className="px-6 py-4 text-right">
+                            {/* <td className="px-6 py-4 text-right">
                               {userShowcase.stats && (
                                 <div className="space-y-1">
                                   <div className="text-sm text-blue-400 font-semibold">
@@ -409,7 +410,7 @@ export default function Leaderboard() {
                                   </div>
                                 </div>
                               )}
-                            </td>
+                            </td> */}
                             <td className="px-6 py-4 text-center">
                               <Link
                                 href={`/showcase/${userShowcase.user.id}`}
@@ -703,6 +704,7 @@ export default function Leaderboard() {
           </div>
         ) : null}
       </motion.div>
+      <Footer />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import { BackgroundBeams } from '@/components/BackgroundBeams';
 import { useSession } from 'next-auth/react';
+import Footer from '@/components/Footer';
 
 interface Player {
   id: number;
@@ -132,9 +133,9 @@ export default function PublicShowcase() {
 
   const getPositionTitle = (position: number) => {
     switch (position) {
-      case 1: return 'Champion';
-      case 2: return 'Elite';
-      case 3: return 'Featured';
+      case 1: return 'Position 1';
+      case 2: return 'Position 2';
+      case 3: return 'Position 3';
       default: return 'Showcase';
     }
   };
@@ -280,7 +281,7 @@ export default function PublicShowcase() {
 
                         <div className="bg-black/30 rounded-lg p-4 space-y-3">
                           <div className="flex justify-between items-center">
-                            <span className="text-white/80">Overall Rating</span>
+                            <span className="text-white/80 mr-4">Overall Rating</span>
                             <span className="text-3xl font-bold text-white">
                               {showcasePlayer.player.overall_rating}
                             </span>
@@ -324,7 +325,7 @@ export default function PublicShowcase() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8 }}
-          className="text-center mt-12 space-x-4"
+          className="text-center mt-12 space-x-4 mb-20"
         >
           <Link 
             href="/leaderboard"
@@ -343,6 +344,7 @@ export default function PublicShowcase() {
           )}
         </motion.div>
       </motion.div>
+      <Footer />
     </div>
   );
 }

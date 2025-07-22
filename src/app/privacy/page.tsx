@@ -1,3 +1,4 @@
+import Footer from '@/components/Footer';
 import { ArrowLeft, Shield, Lock, Eye, Globe } from 'lucide-react';
 import Link from 'next/link';
 
@@ -211,6 +212,7 @@ const PrivacyPolicy = () => {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };

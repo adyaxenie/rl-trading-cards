@@ -1,3 +1,4 @@
+import Footer from '@/components/Footer';
 import { ArrowLeft, Scale, Shield } from 'lucide-react';
 import Link from 'next/link';
 
@@ -161,6 +162,7 @@ const TermsOfService = () => {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };
