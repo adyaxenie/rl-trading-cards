@@ -8,7 +8,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-06-30.basil',
 });
 
-
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -26,11 +25,6 @@ export async function POST(request: NextRequest) {
     const selectedPackage = creditPackages[packageId as keyof typeof creditPackages];
     const totalCredits = selectedPackage.credits + selectedPackage.bonus;
 
-    // Create pending transaction in database
-    if (typeof session.user.id !== 'number') {
-      throw new Error('User ID is missing or invalid');
-    }
-
     // Create Stripe checkout session
     const checkoutSession = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -40,7 +34,7 @@ export async function POST(request: NextRequest) {
             currency: 'usd',
             product_data: {
               name: selectedPackage.name,
-              description: `${selectedPackage.credits.toLocaleString()} credits${selectedPackage.bonus > 0 ? ` + ${selectedPackage.bonus.toLocaleString()} bonus credits` : ''}`,
+              description: `${selectedPackage.credits.toLocaleString()} credits to purchase card packs.`,
             },
             unit_amount: selectedPackage.price * 100, // Stripe expects cents
           },
@@ -50,14 +44,19 @@ export async function POST(request: NextRequest) {
       mode: 'payment',
       success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: cancelUrl,
-      customer_email: session.user.email,
+      customer_email: session.user.email || undefined,
       metadata: {
-        userId: session.user.id.toString(),
+        userId: (session.user.id ?? '').toString(),
         packageId,
         credits: totalCredits.toString(),
-        userEmail: session.user.email,
+        userEmail: session.user.email || '',
       },
-    });
+    } as Stripe.Checkout.SessionCreateParams);
+
+    // Create pending transaction in database
+    if (typeof session.user.id !== 'number') {
+      return NextResponse.json({ error: 'User ID is missing or invalid' }, { status: 400 });
+    }
 
     await createTransaction(
       session.user.id,

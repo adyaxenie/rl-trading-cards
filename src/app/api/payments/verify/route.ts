@@ -7,7 +7,6 @@ import Stripe from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-06-30.basil',
 });
-
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -44,7 +43,7 @@ export async function GET(request: NextRequest) {
     const stripeSession = await stripe.checkout.sessions.retrieve(session_id);
 
     // Verify the session belongs to the current user and payment was successful
-    if (stripeSession.metadata?.userId !== session.user.id.toString()) {
+    if (!session.user.id || stripeSession.metadata?.userId !== session.user.id.toString()) {
       return NextResponse.json({ error: 'Session does not belong to user' }, { status: 403 });
     }
 
@@ -56,6 +55,10 @@ export async function GET(request: NextRequest) {
     const credits = parseInt(stripeSession.metadata.credits);
     const amount = stripeSession.amount_total! / 100; // Convert from cents
     const packageId = stripeSession.metadata.packageId;
+
+    if (typeof session.user.id !== 'number') {
+      return NextResponse.json({ error: 'User ID is missing or invalid' }, { status: 400 });
+    }
 
     const result = await processPaymentAndAddCredits(
       session_id,

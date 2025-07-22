@@ -153,7 +153,7 @@ export default function PublicShowcase() {
       <div className="min-h-screen bg-gradient-to-br from-metal-900 via-metal-800 to-metal-700 relative overflow-hidden">
         <BackgroundBeams className="z-0" />
         
-        <div className="relative z-10 flex items-center justify-center min-h-[80vh]">
+        <div className="relative z-0 flex items-center justify-center min-h-[80vh]">
           <div className="text-center">
             <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-white mb-2">Showcase Not Found</h1>
@@ -187,7 +187,7 @@ export default function PublicShowcase() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="relative z-10 max-w-7xl mx-auto p-6"
+        className="relative z-0 max-w-7xl mx-auto p-6"
       >
         <div className="flex items-center space-x-4 mb-6">
           <Link 
@@ -226,7 +226,7 @@ export default function PublicShowcase() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="relative z-10 max-w-7xl mx-auto px-6 pb-12"
+        className="relative z-0 max-w-7xl mx-auto px-6 pb-12"
       >
         {showcaseData.showcase.length === 0 ? (
           <div className="text-center py-12">

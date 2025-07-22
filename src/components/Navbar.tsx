@@ -51,7 +51,7 @@ const creditPackages: CreditPackage[] = [
   {
     id: 'popular',
     price: 10,
-    credits: 1200,
+    credits: 1000,
     bonus: 200,
     popular: true,
     value: 'Most popular'
@@ -59,21 +59,21 @@ const creditPackages: CreditPackage[] = [
   {
     id: 'premium',
     price: 25,
-    credits: 3200,
+    credits: 2500,
     bonus: 700,
     value: 'Great value'
   },
   {
     id: 'mega',
     price: 50,
-    credits: 7000,
+    credits: 5000,
     bonus: 2000,
     value: 'Best value'
   },
   {
     id: 'ultimate',
     price: 100,
-    credits: 15000,
+    credits: 10000,
     bonus: 5000,
     value: 'Ultimate deal'
   }
@@ -213,7 +213,7 @@ export default function Navbar() {
         body: JSON.stringify({
           packageId,
           successUrl: `${window.location.origin}/success`,
-          cancelUrl: `${window.location.origin}`,
+          cancelUrl: `${window.location.origin}/`,
         }),
       });
 
@@ -495,20 +495,19 @@ export default function Navbar() {
                 </div>
               )}
 
-              {/* Credits Display and Purchase Button */}
-              <div className="flex items-center space-x-2">
-                {/* Daily Credits Claim */}
+              {/* Credits Display with Purchase Option */}
+              <div className="relative">
                 <motion.button
-                  onClick={handleClaimCredits}
-                  disabled={availableCredits <= 0 || isClaimingCredits}
+                  onClick={availableCredits > 0 ? handleClaimCredits : () => setCreditsDropdownOpen(!creditsDropdownOpen)}
+                  disabled={availableCredits > 0 ? isClaimingCredits : false}
                   className={`flex items-center space-x-2 backdrop-blur-sm px-3 py-2 rounded-lg border transition-all duration-300 ${
                     availableCredits > 0 
                       ? 'bg-green-500/20 border-green-400/40 hover:border-green-400/60 cursor-pointer' 
-                      : 'bg-black/30 border-yellow-400/20 hover:border-yellow-400/40 cursor-default'
+                      : 'bg-black/30 border-yellow-400/20 hover:border-yellow-400/40 cursor-pointer'
                   }`}
-                  whileHover={availableCredits > 0 ? { scale: 1.05 } : {}}
-                  whileTap={availableCredits > 0 ? { scale: 0.95 } : {}}
-                  title={availableCredits > 0 ? "Click to claim 240 daily credits!" : `Next daily reset in ${formatTime(timeUntilNext)}`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  title={availableCredits > 0 ? "Click to claim 240 daily credits!" : `Credits: ${credits?.toLocaleString() || 0} - Click to buy more`}
                 >
                   {availableCredits > 0 ? (
                     <>
@@ -519,8 +518,13 @@ export default function Navbar() {
                     </>
                   ) : (
                     <>
-                      <Coins className="w-4 h-4 text-yellow-400" />
+                      {session && (
+                        <div className="w-4 h-4 bg-yellow-400/20 border border-yellow-400/40 text-yellow-400 rounded-full flex items-center justify-center text-xs font-bold">
+                          +
+                        </div>
+                      )}
                       <span className="font-semibold text-yellow-400 text-sm">{credits?.toLocaleString() || 0}</span>
+                      <Coins className="w-4 h-4 text-yellow-400" />
                       {timeUntilNext > 0 && (
                         <span className="w-20 text-xs text-gray-400 hidden sm:inline">
                           ({formatTime(timeUntilNext)})
@@ -530,100 +534,62 @@ export default function Navbar() {
                   )}
                 </motion.button>
 
-                {/* Purchase Credits Dropdown */}
-                {session && (
-                  <div className="relative">
-                    <motion.button
-                      onClick={() => setCreditsDropdownOpen(!creditsDropdownOpen)}
-                      className="flex items-center space-x-2 bg-blue-500/20 backdrop-blur-sm px-3 py-2 rounded-lg border border-blue-400/20 hover:border-blue-400/40 transition-all duration-300"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <CreditCard className="w-4 h-4 text-blue-400" />
-                      <span className="font-semibold text-blue-400 text-sm hidden sm:inline">Buy</span>
-                    </motion.button>
-
-                    {/* Credits Purchase Dropdown */}
-                    <AnimatePresence>
-                      {creditsDropdownOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                          transition={{ duration: 0.15 }}
-                          className="absolute right-0 top-full mt-2 w-80 bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg shadow-lg z-50"
-                        >
-                          <div className="py-3">
-                            <div className="px-4 py-2 border-b border-white/10">
-                              <h3 className="text-sm font-medium text-white flex items-center">
-                                <ShoppingCart className="w-4 h-4 mr-2" />
-                                Purchase Credits
-                              </h3>
-                            </div>
-                            
-                            <div className="px-2 py-2 space-y-2 max-h-80 overflow-y-auto">
-                              {creditPackages.map((pkg) => (
-                                <motion.div
-                                  key={pkg.id}
-                                  className={`relative p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
-                                    pkg.popular 
-                                      ? 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-400/30 hover:border-blue-400/50' 
-                                      : 'bg-white/5 border-white/10 hover:border-white/20'
-                                  }`}
-                                  whileHover={{ scale: 1.02 }}
-                                  whileTap={{ scale: 0.98 }}
-                                  onClick={() => handlePurchaseCredits(pkg.id)}
-                                >
-                                  {pkg.popular && (
-                                    <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
-                                      <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium">
-                                        Most Popular
-                                      </span>
-                                    </div>
-                                  )}
-                                  
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <div className="flex items-center space-x-2">
-                                        <span className="text-white font-semibold">
-                                          {pkg.credits.toLocaleString()} Credits
-                                        </span>
-                                        {pkg.bonus > 0 && (
-                                          <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full">
-                                            +{pkg.bonus.toLocaleString()} Bonus
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="text-xs text-gray-400 mt-1">{pkg.value}</p>
-                                    </div>
-                                    
-                                    <div className="text-right">
-                                      <div className="text-lg font-bold text-white">${pkg.price}</div>
-                                      <div className="text-xs text-gray-400">
-                                        {((pkg.credits + pkg.bonus) / pkg.price).toFixed(0)} credits/$
-                                      </div>
-                                    </div>
+                {/* Credits Purchase Dropdown - only show when not claiming daily credits */}
+                {session && availableCredits <= 0 && (
+                  <AnimatePresence>
+                    {creditsDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 top-full mt-2 w-80 bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg shadow-lg z-50"
+                      >
+                        <div className="py-3">
+                          <div className="px-4 py-2 border-b border-white/10">
+                            <h3 className="text-sm font-medium text-white flex items-center">
+                              <ShoppingCart className="w-4 h-4 mr-2" />
+                              Purchase Credits
+                            </h3>
+                          </div>
+                          
+                          <div className="px-2 py-2 space-y-2 max-h-80 overflow-y-auto">
+                            {creditPackages.map((pkg) => (
+                              <motion.div
+                                key={pkg.id}
+                                className="relative p-3 rounded-lg border bg-white/5 border-white/10 hover:border-white/20 transition-all duration-200 cursor-pointer"
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => handlePurchaseCredits(pkg.id)}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="text-white font-semibold">
+                                    {(pkg.credits + pkg.bonus).toLocaleString()} Credits
                                   </div>
                                   
-                                  {isPurchasing === pkg.id && (
-                                    <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
-                                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                    </div>
-                                  )}
-                                </motion.div>
-                              ))}
-                            </div>
-                            
-                            <div className="px-4 py-2 border-t border-white/10">
-                              <p className="text-xs text-gray-400 text-center">
-                                Secure payments powered by Stripe
-                              </p>
-                            </div>
+                                  <div className="text-lg font-bold text-white">
+                                    ${pkg.price}
+                                  </div>
+                                </div>
+                                
+                                {isPurchasing === pkg.id && (
+                                  <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  </div>
+                                )}
+                              </motion.div>
+                            ))}
                           </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                          
+                          <div className="px-4 py-2 border-t border-white/10">
+                            <p className="text-xs text-gray-400 text-center">
+                              Secure payments powered by Stripe
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 )}
               </div>
 
@@ -817,6 +783,16 @@ export default function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
+      {(userDropdownOpen || tasksDropdownOpen || creditsDropdownOpen) && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => {
+            setUserDropdownOpen(false);
+            setTasksDropdownOpen(false);
+            setCreditsDropdownOpen(false);
+          }}
+        />
+      )}
     </nav>
   );
 }
