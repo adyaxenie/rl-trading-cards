@@ -1402,6 +1402,105 @@ export async function claimTaskReward(userId: number, userTaskId: number): Promi
   }
 }
 
+export async function claimAllTaskRewards(userId: number): Promise<{
+  success: boolean;
+  totalCredits: number;
+  newBalance: number;
+  claimedTasks: number;
+  error?: string;
+}> {
+  const pool = await getDb();
+  let connection: mysql.PoolConnection | null = null;
+  
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // Get all completed but unclaimed tasks for the user
+    const [taskRows] = await connection.execute(`
+      SELECT ut.id, ut.task_id, t.reward_credits, t.title
+      FROM user_tasks ut
+      JOIN tasks t ON ut.task_id = t.id
+      WHERE ut.user_id = ? AND ut.completed = TRUE AND ut.claimed = FALSE
+    `, [userId]);
+
+    const unclaimedTasks = taskRows as any[];
+    
+    if (unclaimedTasks.length === 0) {
+      await connection.rollback();
+      return {
+        success: false,
+        totalCredits: 0,
+        newBalance: 0,
+        claimedTasks: 0,
+        error: 'No tasks available to claim'
+      };
+    }
+
+    // Calculate total credits to award
+    const totalCredits = unclaimedTasks.reduce((sum, task) => sum + task.reward_credits, 0);
+    const userTaskIds = unclaimedTasks.map(task => task.id);
+
+    // Get current user credits
+    const [userCredits] = await connection.execute(
+      'SELECT credits FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    const currentCredits = (userCredits as any[])[0]?.credits || 0;
+    const newBalance = currentCredits + totalCredits;
+
+    // Update user credits
+    await connection.execute(
+      'UPDATE users SET credits = ? WHERE id = ?',
+      [newBalance, userId]
+    );
+
+    // Mark all tasks as claimed (bulk update)
+    const placeholders = userTaskIds.map(() => '?').join(',');
+    await connection.execute(
+      `UPDATE user_tasks SET claimed = TRUE, claimed_at = NOW() WHERE id IN (${placeholders})`,
+      userTaskIds
+    );
+
+    // Record all task completions (bulk insert)
+    const completionValues = unclaimedTasks.map(task => [userId, task.task_id, task.reward_credits]);
+    const completionPlaceholders = completionValues.map(() => '(?, ?, ?)').join(',');
+    const flatValues = completionValues.flat();
+    
+    await connection.execute(
+      `INSERT INTO task_completions (user_id, task_id, credits_earned) VALUES ${completionPlaceholders}`,
+      flatValues
+    );
+
+    await connection.commit();
+
+    return {
+      success: true,
+      totalCredits,
+      newBalance,
+      claimedTasks: unclaimedTasks.length
+    };
+
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('Error claiming all task rewards:', error);
+    return {
+      success: false,
+      totalCredits: 0,
+      newBalance: 0,
+      claimedTasks: 0,
+      error: 'Failed to claim task rewards'
+    };
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+}
+
 export async function getUnclaimedTasksCount(userId: number): Promise<number> {
   try {
     const [rows] = await executeQuerySimple(

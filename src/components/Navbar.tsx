@@ -94,6 +94,8 @@ export default function Navbar() {
   const [isClaimingTask, setIsClaimingTask] = useState<number | null>(null);
   const [isPurchasing, setIsPurchasing] = useState<string | null>(null);
   const [lastApiCall, setLastApiCall] = useState(0);
+  const [isClaimingAllTasks, setIsClaimingAllTasks] = useState(false);
+
   const pathname = usePathname();
 
   // Calculate countdown locally
@@ -174,6 +176,43 @@ export default function Navbar() {
       }
     } catch (error) {
       console.error('Error loading data:', error);
+    }
+  };
+
+  const handleClaimAllTasks = async () => {
+    if (isClaimingAllTasks || completedTasks.length === 0) return;
+    
+    setIsClaimingAllTasks(true);
+    try {
+      const response = await fetch('/api/tasks/claim-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log(`Successfully claimed ${data.claimedTasks} tasks for ${data.totalCredits} total credits!`);        
+        
+        // Update credits if you have the setter available
+        if (setCredits && data.newBalance) {
+          setCredits(data.newBalance);
+        }
+        
+        // Refresh both credits and tasks
+        await loadCreditsAndTasks();
+        
+        // Force refresh tasks specifically if you have the function
+        if (refreshTasks) {
+          await refreshTasks();
+        }
+      } else {
+        console.error('Failed to claim all tasks:', data.error);
+      }
+    } catch (error) {
+      console.error('Error claiming all tasks:', error);
+    } finally {
+      setIsClaimingAllTasks(false);
     }
   };
 
@@ -429,7 +468,27 @@ export default function Navbar() {
                           {/* Completed Tasks */}
                           {completedTasks.length > 0 && (
                             <div className="px-4 py-2 border-b border-white/10">
-                              <h4 className="text-xs font-medium text-green-400 mb-2">Ready to Claim</h4>
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-xs font-medium text-green-400">Ready to Claim</h4>
+                                {completedTasks.length > 1 && (
+                                  <motion.button
+                                    onClick={handleClaimAllTasks}
+                                    disabled={isClaimingAllTasks}
+                                    className="bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white px-3 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1"
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                  >
+                                    {isClaimingAllTasks ? (
+                                      <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Gift className="w-3 h-3" />
+                                        <span>Claim All ({completedTasks.reduce((sum, task) => sum + task.task.reward_credits, 0).toLocaleString()})</span>
+                                      </>
+                                    )}
+                                  </motion.button>
+                                )}
+                              </div>
                               {completedTasks.map((task) => (
                                 <div key={task.id} className="flex items-center justify-between py-2 px-2 bg-green-500/10 rounded mb-2">
                                   <div className="flex-1 min-w-0">
@@ -438,10 +497,10 @@ export default function Navbar() {
                                   </div>
                                   <button
                                     onClick={() => handleClaimTask(task.id)}
-                                    disabled={isClaimingTask === task.id}
-                                    className="ml-2 bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white px-3 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1 flex-shrink-0"
+                                    disabled={isClaimingTask === task.id || isClaimingAllTasks}
+                                    className="ml-2 bg-green-600 hover:bg-green-700 disabled:bg-green-800 disabled:opacity-50 text-white px-3 py-1 rounded text-xs font-medium transition-colors flex items-center space-x-1 flex-shrink-0"
                                   >
-                                    {isClaimingTask === task.id ? (
+                                    {(isClaimingTask === task.id || isClaimingAllTasks) ? (
                                       <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
                                     ) : (
                                       <>
@@ -659,6 +718,8 @@ export default function Navbar() {
         </div>
       </div>
 
+
+
       {/* Click outside to close dropdowns */}
       {(userDropdownOpen || tasksDropdownOpen || creditsDropdownOpen) && (
         <div
@@ -783,16 +844,6 @@ export default function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
-      {(userDropdownOpen || tasksDropdownOpen || creditsDropdownOpen) && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => {
-            setUserDropdownOpen(false);
-            setTasksDropdownOpen(false);
-            setCreditsDropdownOpen(false);
-          }}
-        />
-      )}
     </nav>
   );
 }
