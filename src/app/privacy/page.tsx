@@ -1,3 +1,4 @@
+'use client';
 import Footer from '@/components/Footer';
 import { ArrowLeft, Shield, Lock, Eye, Globe } from 'lucide-react';
 import Link from 'next/link';
