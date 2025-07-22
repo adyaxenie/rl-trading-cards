@@ -1650,3 +1650,152 @@ export async function sellCard(userId: number, playerId: number, quantity: numbe
     }
   }
 }
+
+export const creditPackages = {
+  starter: {
+    price: 5,
+    credits: 500,
+    bonus: 0,
+    name: 'Starter Pack'
+  },
+  popular: {
+    price: 10,
+    credits: 1200,
+    bonus: 200,
+    name: 'Popular Pack'
+  },
+  premium: {
+    price: 25,
+    credits: 3200,
+    bonus: 700,
+    name: 'Premium Pack'
+  },
+  mega: {
+    price: 50,
+    credits: 7000,
+    bonus: 2000,
+    name: 'Mega Pack'
+  },
+  ultimate: {
+    price: 100,
+    credits: 15000,
+    bonus: 5000,
+    name: 'Ultimate Pack'
+  }
+};
+
+export async function isPaymentProcessed(stripeSessionId: string): Promise<boolean> {
+  try {
+    const [rows] = await executeQuerySimple(
+      'SELECT id FROM transactions WHERE stripe_session_id = ? AND status = "completed"',
+      [stripeSessionId]
+    );
+    return (rows as any[]).length > 0;
+  } catch (error) {
+    console.error('Error checking payment status:', error);
+    throw error;
+  }
+}
+
+// Get transaction by Stripe session ID
+export async function getTransactionByStripeSession(stripeSessionId: string): Promise<any | null> {
+  try {
+    const [rows] = await executeQuerySimple(
+      'SELECT * FROM transactions WHERE stripe_session_id = ?',
+      [stripeSessionId]
+    );
+    const result = rows as any[];
+    return result[0] || null;
+  } catch (error) {
+    console.error('Error getting transaction by stripe session:', error);
+    throw error;
+  }
+}
+
+// Process payment atomically - create/update transaction and add credits
+export async function processPaymentAndAddCredits(
+  stripeSessionId: string,
+  userId: number,
+  credits: number,
+  amount: number,
+  packageId: string
+): Promise<{ success: boolean; alreadyProcessed: boolean }> {
+  const pool = await getDb();
+  let connection = null;
+  
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // Check if transaction already exists and is completed
+    const [existingRows] = await connection.execute(
+      'SELECT id, status FROM transactions WHERE stripe_session_id = ?',
+      [stripeSessionId]
+    );
+
+    const existing = (existingRows as any[])[0];
+    
+    if (existing && existing.status === 'completed') {
+      await connection.rollback();
+      return { success: true, alreadyProcessed: true };
+    }
+
+    if (existing) {
+      // Update existing transaction to completed
+      await connection.execute(
+        'UPDATE transactions SET status = "completed", updated_at = NOW() WHERE stripe_session_id = ?',
+        [stripeSessionId]
+      );
+    } else {
+      // Create new transaction record
+      await connection.execute(
+        `INSERT INTO transactions (user_id, amount, credits, package_id, stripe_session_id, status, created_at, updated_at) 
+         VALUES (?, ?, ?, ?, ?, "completed", NOW(), NOW())`,
+        [userId, amount, credits, packageId, stripeSessionId]
+      );
+    }
+
+    // Add credits to user (only if we haven't processed this payment before)
+    if (!existing || existing.status !== 'completed') {
+      await connection.execute(
+        'UPDATE users SET credits = credits + ? WHERE id = ?',
+        [credits, userId]
+      );
+    }
+
+    await connection.commit();
+    return { success: true, alreadyProcessed: false };
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('Error processing payment:', error);
+    throw error;
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+}
+
+// Create a pending transaction (called when checkout is created)
+export async function createTransaction(
+  userId: number,
+  amount: number,
+  credits: number,
+  packageId: string,
+  stripeSessionId: string,
+  status: 'pending' | 'completed' | 'failed' = 'pending'
+): Promise<number> {
+  try {
+    const [result] = await executeQuerySimple(
+      `INSERT INTO transactions (user_id, amount, credits, package_id, stripe_session_id, status, created_at, updated_at) 
+       VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [userId, amount, credits, packageId, stripeSessionId, status]
+    );
+    return (result as any).insertId;
+  } catch (error) {
+    console.error('Error creating transaction:', error);
+    throw error;
+  }
+}

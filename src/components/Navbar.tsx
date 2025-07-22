@@ -1,11 +1,11 @@
+// components/Navbar.tsx - Updated for App Router
 'use client';
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Coins, Timer, User, Menu, X, Package, Trophy, Settings, CheckCircle, Clock, Gift, Target, RefreshCw } from 'lucide-react';
+import { Coins, Timer, User, Menu, X, Package, Trophy, Settings, CheckCircle, Clock, Gift, Target, RefreshCw, CreditCard, ShoppingCart } from 'lucide-react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useCredits } from '@/contexts/CreditsContext';
 
@@ -31,9 +31,53 @@ interface Task {
   };
 }
 
-interface NavbarProps {
-  credits?: number;
+interface CreditPackage {
+  id: string;
+  price: number;
+  credits: number;
+  bonus: number;
+  popular?: boolean;
+  value: string;
 }
+
+const creditPackages: CreditPackage[] = [
+  {
+    id: 'starter',
+    price: 5,
+    credits: 500,
+    bonus: 0,
+    value: 'Good value'
+  },
+  {
+    id: 'popular',
+    price: 10,
+    credits: 1200,
+    bonus: 200,
+    popular: true,
+    value: 'Most popular'
+  },
+  {
+    id: 'premium',
+    price: 25,
+    credits: 3200,
+    bonus: 700,
+    value: 'Great value'
+  },
+  {
+    id: 'mega',
+    price: 50,
+    credits: 7000,
+    bonus: 2000,
+    value: 'Best value'
+  },
+  {
+    id: 'ultimate',
+    price: 100,
+    credits: 15000,
+    bonus: 5000,
+    value: 'Ultimate deal'
+  }
+];
 
 export default function Navbar() {
   const { credits, setCredits, refreshCredits, availableCredits, setAvailableCredits } = useCredits();
@@ -41,16 +85,18 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [tasksDropdownOpen, setTasksDropdownOpen] = useState(false);
+  const [creditsDropdownOpen, setCreditsDropdownOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [unclaimedCount, setUnclaimedCount] = useState(0);
   const [isRefreshingTasks, setIsRefreshingTasks] = useState(false);
-  const [timeUntilNext, setTimeUntilNext] = useState(0); // Add this back
+  const [timeUntilNext, setTimeUntilNext] = useState(0);
   const [isClaimingCredits, setIsClaimingCredits] = useState(false);
   const [isClaimingTask, setIsClaimingTask] = useState<number | null>(null);
+  const [isPurchasing, setIsPurchasing] = useState<string | null>(null);
   const [lastApiCall, setLastApiCall] = useState(0);
   const pathname = usePathname();
 
-  // Calculate countdown locally - ADD THIS BACK
+  // Calculate countdown locally
   const calculateTimeUntilReset = (): number => {
     const now = new Date();
     const nextReset = new Date();
@@ -79,7 +125,7 @@ export default function Navbar() {
     }
   }, [session]);
 
-  // Update countdown every second - ADD THIS BACK
+  // Update countdown every second
   useEffect(() => {
     if (timeUntilNext > 0) {
       const interval = setInterval(() => {
@@ -112,7 +158,7 @@ export default function Navbar() {
       // Use context refresh instead
       await refreshCredits();
 
-      // IMPORTANT: Set the timer after refreshing credits
+      // Set the timer after refreshing credits
       if (availableCredits === 0) {
         setTimeUntilNext(calculateTimeUntilReset());
       } else {
@@ -153,6 +199,43 @@ export default function Navbar() {
     }
   };
 
+  const handlePurchaseCredits = async (packageId: string) => {
+    if (!session || isPurchasing) return;
+    
+    setIsPurchasing(packageId);
+    
+    try {
+      const response = await fetch('/api/payments/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          packageId,
+          successUrl: `${window.location.origin}/success`,
+          cancelUrl: `${window.location.origin}`,
+        }),
+      });
+
+      const { url, error } = await response.json();
+
+      if (error) {
+        console.error('Payment error:', error);
+        alert('Failed to initiate payment. Please try again.');
+        return;
+      }
+
+      if (url) {
+        window.location.href = url;
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      alert('Failed to initiate payment. Please try again.');
+    } finally {
+      setIsPurchasing(null);
+    }
+  };
+
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case 'easy': return 'text-green-400 border-green-400/30';
@@ -162,38 +245,6 @@ export default function Navbar() {
       default: return 'text-gray-400 border-gray-400/30';
     }
   };
-
-  // Load credits and tasks
-  useEffect(() => {
-    if (session?.user) {
-      loadCreditsAndTasks();
-      
-      const interval = setInterval(() => {
-        loadCreditsAndTasks();
-      }, 30000); // Check every 30 seconds
-      
-      return () => clearInterval(interval);
-    }
-  }, [session]);
-
-  // Update countdown every second
-  useEffect(() => {
-    if (timeUntilNext > 0) {
-      const interval = setInterval(() => {
-        setTimeUntilNext(prev => {
-          const newTime = prev - 1;
-          if (newTime <= 0) {
-            // Reset happened, reload data
-            loadCreditsAndTasks();
-            return 0;
-          }
-          return newTime;
-        });
-      }, 1000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [timeUntilNext]);
 
   const refreshTasks = async () => {
     setIsRefreshingTasks(true);
@@ -326,7 +377,7 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* Right side - Tasks, Credits, and User */}
+          {/* Right side - Tasks, Credits, Purchase, and User */}
           <div className="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
             <div className="flex items-center space-x-4">
               {/* Tasks Dropdown */}
@@ -444,38 +495,137 @@ export default function Navbar() {
                 </div>
               )}
 
-              {/* Daily Credits */}
-              <motion.button
-                onClick={handleClaimCredits}
-                disabled={availableCredits <= 0 || isClaimingCredits}
-                className={`flex items-center space-x-2 backdrop-blur-sm px-3 py-2 rounded-lg border transition-all duration-300 ${
-                  availableCredits > 0 
-                    ? 'bg-green-500/20 border-green-400/40 hover:border-green-400/60 cursor-pointer' 
-                    : 'bg-black/30 border-yellow-400/20 hover:border-yellow-400/40 cursor-default'
-                }`}
-                whileHover={availableCredits > 0 ? { scale: 1.05 } : {}}
-                whileTap={availableCredits > 0 ? { scale: 0.95 } : {}}
-                title={availableCredits > 0 ? "Click to claim 240 daily credits!" : `Next daily reset in ${formatTime(timeUntilNext)}`}
-              >
-                {availableCredits > 0 ? (
-                  <>
-                    <Gift className="w-4 h-4 text-green-400" />
-                    <span className="font-semibold text-green-400 text-sm">
-                      {isClaimingCredits ? 'Claiming...' : 'Daily 240'}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Coins className="w-4 h-4 text-yellow-400" />
-                    <span className="font-semibold text-yellow-400 text-sm">{credits?.toLocaleString() || 0}</span>
-                    {timeUntilNext > 0 && (
-                      <span className="w-20 text-xs text-gray-400 hidden sm:inline">
-                        ({formatTime(timeUntilNext)})
+              {/* Credits Display and Purchase Button */}
+              <div className="flex items-center space-x-2">
+                {/* Daily Credits Claim */}
+                <motion.button
+                  onClick={handleClaimCredits}
+                  disabled={availableCredits <= 0 || isClaimingCredits}
+                  className={`flex items-center space-x-2 backdrop-blur-sm px-3 py-2 rounded-lg border transition-all duration-300 ${
+                    availableCredits > 0 
+                      ? 'bg-green-500/20 border-green-400/40 hover:border-green-400/60 cursor-pointer' 
+                      : 'bg-black/30 border-yellow-400/20 hover:border-yellow-400/40 cursor-default'
+                  }`}
+                  whileHover={availableCredits > 0 ? { scale: 1.05 } : {}}
+                  whileTap={availableCredits > 0 ? { scale: 0.95 } : {}}
+                  title={availableCredits > 0 ? "Click to claim 240 daily credits!" : `Next daily reset in ${formatTime(timeUntilNext)}`}
+                >
+                  {availableCredits > 0 ? (
+                    <>
+                      <Gift className="w-4 h-4 text-green-400" />
+                      <span className="font-semibold text-green-400 text-sm">
+                        {isClaimingCredits ? 'Claiming...' : 'Daily 240'}
                       </span>
-                    )}
-                  </>
+                    </>
+                  ) : (
+                    <>
+                      <Coins className="w-4 h-4 text-yellow-400" />
+                      <span className="font-semibold text-yellow-400 text-sm">{credits?.toLocaleString() || 0}</span>
+                      {timeUntilNext > 0 && (
+                        <span className="w-20 text-xs text-gray-400 hidden sm:inline">
+                          ({formatTime(timeUntilNext)})
+                        </span>
+                      )}
+                    </>
+                  )}
+                </motion.button>
+
+                {/* Purchase Credits Dropdown */}
+                {session && (
+                  <div className="relative">
+                    <motion.button
+                      onClick={() => setCreditsDropdownOpen(!creditsDropdownOpen)}
+                      className="flex items-center space-x-2 bg-blue-500/20 backdrop-blur-sm px-3 py-2 rounded-lg border border-blue-400/20 hover:border-blue-400/40 transition-all duration-300"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <CreditCard className="w-4 h-4 text-blue-400" />
+                      <span className="font-semibold text-blue-400 text-sm hidden sm:inline">Buy</span>
+                    </motion.button>
+
+                    {/* Credits Purchase Dropdown */}
+                    <AnimatePresence>
+                      {creditsDropdownOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute right-0 top-full mt-2 w-80 bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg shadow-lg z-50"
+                        >
+                          <div className="py-3">
+                            <div className="px-4 py-2 border-b border-white/10">
+                              <h3 className="text-sm font-medium text-white flex items-center">
+                                <ShoppingCart className="w-4 h-4 mr-2" />
+                                Purchase Credits
+                              </h3>
+                            </div>
+                            
+                            <div className="px-2 py-2 space-y-2 max-h-80 overflow-y-auto">
+                              {creditPackages.map((pkg) => (
+                                <motion.div
+                                  key={pkg.id}
+                                  className={`relative p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                                    pkg.popular 
+                                      ? 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-400/30 hover:border-blue-400/50' 
+                                      : 'bg-white/5 border-white/10 hover:border-white/20'
+                                  }`}
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                  onClick={() => handlePurchaseCredits(pkg.id)}
+                                >
+                                  {pkg.popular && (
+                                    <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
+                                      <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                                        Most Popular
+                                      </span>
+                                    </div>
+                                  )}
+                                  
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="flex items-center space-x-2">
+                                        <span className="text-white font-semibold">
+                                          {pkg.credits.toLocaleString()} Credits
+                                        </span>
+                                        {pkg.bonus > 0 && (
+                                          <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full">
+                                            +{pkg.bonus.toLocaleString()} Bonus
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-gray-400 mt-1">{pkg.value}</p>
+                                    </div>
+                                    
+                                    <div className="text-right">
+                                      <div className="text-lg font-bold text-white">${pkg.price}</div>
+                                      <div className="text-xs text-gray-400">
+                                        {((pkg.credits + pkg.bonus) / pkg.price).toFixed(0)} credits/$
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {isPurchasing === pkg.id && (
+                                    <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                  )}
+                                </motion.div>
+                              ))}
+                            </div>
+                            
+                            <div className="px-4 py-2 border-t border-white/10">
+                              <p className="text-xs text-gray-400 text-center">
+                                Secure payments powered by Stripe
+                              </p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 )}
-              </motion.button>
+              </div>
 
               {/* User Authentication */}
               {status === 'loading' ? (
@@ -513,7 +663,7 @@ export default function Navbar() {
                       >
                         <div className="py-1">
                           <div className="px-4 py-2 border-b border-white/10">
-                            <p className="text-sm font-medium text-white truncate">{session.user?.username}</p>
+                            <p className="text-sm font-medium text-white truncate">{session.user?.name}</p>
                             <p className="text-xs text-gray-300 truncate">{session.user?.email}</p>
                           </div>
                           <button
@@ -544,12 +694,13 @@ export default function Navbar() {
       </div>
 
       {/* Click outside to close dropdowns */}
-      {(userDropdownOpen || tasksDropdownOpen) && (
+      {(userDropdownOpen || tasksDropdownOpen || creditsDropdownOpen) && (
         <div
           className="fixed inset-0 z-40"
           onClick={() => {
             setUserDropdownOpen(false);
             setTasksDropdownOpen(false);
+            setCreditsDropdownOpen(false);
           }}
         />
       )}
@@ -586,23 +737,38 @@ export default function Navbar() {
                 );
               })}
 
-              {/* Mobile Tasks */}
-              {session && completedTasks.length > 0 && (
+              {/* Mobile Credit Purchase */}
+              {session && (
                 <div className="px-3 py-2 mt-4">
                   <div className="bg-black/30 backdrop-blur-sm px-3 py-2 rounded-lg border border-white/20">
-                    <h4 className="text-sm font-medium text-green-400 mb-2">Ready to Claim</h4>
-                    {completedTasks.slice(0, 3).map((task) => (
-                      <div key={task.id} className="flex items-center justify-between py-1">
-                        <span className="text-xs text-white truncate">{task.task.title}</span>
+                    <h4 className="text-sm font-medium text-blue-400 mb-2 flex items-center">
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Purchase Credits
+                    </h4>
+                    <div className="space-y-2">
+                      {creditPackages.slice(0, 3).map((pkg) => (
                         <button
-                          onClick={() => handleClaimTask(task.id)}
-                          disabled={isClaimingTask === task.id}
-                          className="bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white px-2 py-1 rounded text-xs"
+                          key={pkg.id}
+                          onClick={() => handlePurchaseCredits(pkg.id)}
+                          disabled={isPurchasing === pkg.id}
+                          className="w-full flex items-center justify-between py-2 px-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
                         >
-                          {isClaimingTask === task.id ? '...' : task.task.reward_credits.toLocaleString()}
+                          <div className="text-left">
+                            <span className="text-sm text-white font-medium">
+                              {pkg.credits.toLocaleString()} Credits
+                            </span>
+                            {pkg.bonus > 0 && (
+                              <span className="ml-2 text-xs text-green-400">
+                                +{pkg.bonus.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-sm text-white font-bold">
+                            {isPurchasing === pkg.id ? '...' : `${pkg.price}`}
+                          </span>
                         </button>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
