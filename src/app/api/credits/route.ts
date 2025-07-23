@@ -3,8 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { getUserCredits, updateUserCredits, getUserByEmail, executeQuerySimple } from '@/lib/database'
 
-const DAILY_CREDITS = 240
-const RESET_HOUR_UTC = 8 // 8 AM UTC = 12 AM PT
+const DAILY_CREDITS = 480
+const RESET_HOUR_UTC = 2 // 2 AM UTC = 6 PM PT
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)

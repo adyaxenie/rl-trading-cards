@@ -117,7 +117,7 @@ describe('Credits API Security Tests', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.credits).toBe(340);
-      expect(data.claimedCredits).toBe(240);
+      expect(data.claimedCredits).toBe(480);
     });
 
     test('POST - should reject double claiming', async () => {

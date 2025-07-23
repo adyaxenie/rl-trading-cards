@@ -32,7 +32,7 @@ export function CreditsProvider({ children }: { children: React.ReactNode }) {
         setCredits(data.credits);
         const newCanClaim = data.canClaim;
         setCanClaim(newCanClaim);
-        setAvailableCredits(newCanClaim ? 240 : 0);
+        setAvailableCredits(newCanClaim ? 480 : 0);
       }
     } catch (error) {
       console.error('Error refreshing credits:', error);

@@ -104,7 +104,7 @@ export default function Navbar() {
     const nextReset = new Date();
     
     // Set to 8 AM UTC (reset time)
-    nextReset.setUTCHours(8, 0, 0, 0);
+    nextReset.setUTCHours(2, 0, 0, 0);
     
     // If reset time has passed today, move to tomorrow
     if (now >= nextReset) {
@@ -566,13 +566,13 @@ export default function Navbar() {
                   }`}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  title={availableCredits > 0 ? "Click to claim 240 daily credits!" : `Credits: ${credits?.toLocaleString() || 0} - Click to buy more`}
+                  title={availableCredits > 0 ? "Click to claim 480 daily credits!" : `Credits: ${credits?.toLocaleString() || 0} - Click to buy more`}
                 >
                   {availableCredits > 0 ? (
                     <>
                       <Gift className="w-4 h-4 text-green-400" />
                       <span className="font-semibold text-green-400 text-sm">
-                        {isClaimingCredits ? 'Claiming...' : 'Daily 240'}
+                        {isClaimingCredits ? 'Claiming...' : 'Daily 480 Credits'}
                       </span>
                     </>
                   ) : (
@@ -585,7 +585,7 @@ export default function Navbar() {
                       <span className="font-semibold text-yellow-400 text-sm">{credits?.toLocaleString() || 0}</span>
                       <Coins className="w-4 h-4 text-yellow-400" />
                       {timeUntilNext > 0 && (
-                        <span className="w-20 text-xs text-gray-400 hidden sm:inline">
+                        <span className="w-24 text-xs text-gray-400 hidden sm:inline">
                           ({formatTime(timeUntilNext)})
                         </span>
                       )}
