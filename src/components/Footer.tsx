@@ -56,10 +56,9 @@ const Footer = () => {
               href="https://twitter.com/axenieady" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-gray-300 hover:text-blue-400 transition-colors duration-200 flex items-center space-x-1 group"
+              className="flex text-gray-300 hover:text-blue-400 transition-colors duration-200 flex items-center space-x-1 group"
               title="Follow Twitter and message me your in-game username for free 4,000 credits"
             >
-              <span className='mr-1'>Created by</span>
               <Twitter className="w-4 h-4" />
               <span>@axenieady</span>
               <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex bg-black text-white text-xs rounded px-2 py-1 shadow-lg z-30 whitespace-nowrap">

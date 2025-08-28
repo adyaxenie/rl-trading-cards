@@ -3,11 +3,12 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Coins, Timer, User, Menu, X, Package, Trophy, Settings, CheckCircle, Clock, Gift, Target, RefreshCw, CreditCard, ShoppingCart } from 'lucide-react';
+import { Coins, Timer, User, Menu, X, Package, Trophy, Settings, CheckCircle, Clock, Gift, Target, RefreshCw, CreditCard, ShoppingCart, Sword } from 'lucide-react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCredits } from '@/contexts/CreditsContext';
+import Home from '@/app/page';
 
 interface Task {
   id: number;
@@ -336,9 +337,10 @@ export default function Navbar() {
   };
 
   const navItems = [
-    { name: 'Packs', href: '/', icon: Package },
+    { name: 'Packs', href: '/packs', icon: Package },
     { name: 'Collection', href: '/inventory', icon: User },
     { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
+    { name: 'Battles', href: '/battles', icon: Sword },
   ];
 
   const completedTasks = tasks.filter(t => t.completed && !t.claimed);

@@ -117,37 +117,30 @@ export default function Home() {
         onUsernameSet={handleUsernameSet}
       />
 
-      {/* Hero Section - Instant Load */}
-      {!session && (
-      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-20">
+      <section className="relative max-w-7xl mx-auto px-6 pt-20">
+        {/* Hero Section with Cards */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-center mb-12"
+          transition={{ delay: 0.1 }}
+          className="sm:flex justify-between mb-16"
         >
-            <motion.h1 
-            className="text-3xl sm:text-4xl md:text-6xl font-black h-auto md:h-20 mb-6 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent leading-tight break-words"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.8 }}
-            >
-            Rocket League Trading Cards
-            </motion.h1>
+        {/* Header Content */}
+        <div className="text-center lg:text-left w-full lg:w-2/3">
+          <h1 className="text-4xl md:text-7xl font-bold h-28 md:h-40 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent mb-6">
+            Rocket League
+            <br />
+            Trading Cards
+          </h1>
           
-          <motion.p 
-            className="text-xl md:text-2xl text-blue-200 max-w-3xl mx-auto mb-8 leading-relaxed"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.8 }}
-          >
-            Collect your favorite Rocket League pros with unique stats and rarities. 
-            Experience the thrill of opening packs and building your ultimate esports team.
-          </motion.p>
+          <p className="text-xl md:text-2xl text-gray-200 max-w-2xl mx-auto lg:mx-0 mb-8 leading-relaxed">
+            Collect your favorite Rocket League pros, open thrilling packs, and build the ultimate esports showcase. 
+            Climb leaderboards, sell cards for profit, and become the top collector.
+          </p>
 
-          {/* Instant CTA based on session */}
+          {/* Credits/Sign-in UI under header */}
           <motion.div
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12"
+            className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start items-center"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.8 }}
@@ -156,72 +149,210 @@ export default function Home() {
               <div className="flex items-center gap-4">
                 <div className="flex items-center space-x-2 bg-black/30 backdrop-blur-sm px-4 py-2 rounded-lg border border-yellow-400/20">
                   <Coins className="w-5 h-5 text-yellow-400" />
-                  <span className="font-semibold text-yellow-400">{credits} Credits</span>
+                  <span className="font-semibold text-yellow-400">{credits?.toLocaleString() || 0} Credits</span>
                 </div>
                 <Link 
-                  href="/inventory" 
+                  href="/packs" 
                   className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 flex items-center space-x-2"
                 >
                   <Package className="w-5 h-5" />
-                  <span>View Collection</span>
+                  <span>Open Packs</span>
                 </Link>
               </div>
             ) : (
-              <div className="flex justify-center flex-col sm:flex-row gap-4 items-center w-full">
+              <div className="w-full md:w-3/4 flex flex-col sm:flex-row gap-4 items-center">
                 <button
-                  onClick={() => signIn('google')}
-                  className="w-full md:w-1/4 flex h-12 items-center justify-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all duration-200"
+                  onClick={() => signIn('google', { callbackUrl: '/packs' })}
+                  className="w-full flex md:w-1/2 h-12 items-center justify-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all duration-200"
                 >
                   <img src="/google_logo.svg" alt="Google logo" className="w-4 h-4" />
                   <span>Sign In with Google</span>
                 </button>
-                <div className="text-center">
+                <div className="md:w-1/2 text-center">
                   <div className="text-green-300 font-semibold">✨ 3500 Starter Pack Credits</div>
                   <div className="text-sm text-gray-400">+ 480 Daily Credits</div>
                 </div>
               </div>
             )}
           </motion.div>
+          </div>
+
+          {/* Card Hand Showcase */}
+          <div className="relative h-96 w-[400px] flex justify-center mt-20 md:mt-0">
+          {/* Rare Card - Bottom/Back */}
+          <motion.div
+            initial={{ opacity: 0, rotate: 0 }}
+            animate={{ opacity: 1, rotate: -5 }}
+            transition={{ delay: 0.3 }}
+            className="absolute w-40 h-60 rounded-lg bg-gradient-to-br from-slate-200 via-gray-300 to-slate-400 border border-slate-300 shadow-glow-rare overflow-hidden"
+            style={{ top: '80px', left: '30px' }}
+          >
+            <div className="absolute top-1 right-1 bg-slate-600 text-white font-bold px-1 py-0.5 rounded text-xs">
+              Rare
+            </div>
+            <div className="absolute top-1 left-1 bg-black/80 text-white px-1 py-0.5 rounded text-xs font-bold border border-white/20">
+              25%
+            </div>
+            <div className="w-full h-16 flex items-center justify-center">
+              <User size={20} className="text-black" />
+            </div>
+            <div className="p-2 text-black">
+              <h3 className="font-bold text-xs mb-1">Pro</h3>
+              <p className="text-xs mb-1">Team</p>
+              <div className="text-center mb-2">
+                <span className="text-sm font-bold">75</span>
+                <span className="text-xs ml-1">OVR</span>
+              </div>
+              {/* Condensed Stats */}
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                <div className="flex justify-between">
+                  <span>DEF</span>
+                  <span>72</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>OFF</span>
+                  <span>78</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>MEC</span>
+                  <span>74</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>CHA</span>
+                  <span>76</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>IQ</span>
+                  <span>75</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>SYNC</span>
+                  <span>75</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Epic Card - Middle */}
+          <motion.div
+            initial={{ opacity: 0, rotate: 0 }}
+            animate={{ opacity: 1, rotate: 5 }}
+            transition={{ delay: 0.5 }}
+            className="absolute w-48 h-72 rounded-lg bg-gradient-to-br from-yellow-200 via-amber-300 to-yellow-500 border-2 border-yellow-400 shadow-glow-epic overflow-hidden"
+            style={{ top: '50px', left: '20%', transform: 'translateX(-50%)' }}
+          >
+            <div className="absolute top-1 right-1 bg-yellow-600 text-black font-bold px-1 py-0.5 rounded text-xs">
+              Epic
+            </div>
+            <div className="absolute top-1 left-1 bg-black/80 text-white px-1 py-0.5 rounded text-xs font-bold border border-white/20">
+              13%
+            </div>
+            <div className="w-full h-20 flex items-center justify-center">
+              <User size={24} className="text-black" />
+            </div>
+            <div className="p-3 text-black">
+              <h3 className="font-bold text-sm mb-1">Elite Pro</h3>
+              <p className="text-xs mb-1">Team • NA</p>
+              <div className="text-center mb-2">
+                <span className="text-lg font-bold">87</span>
+                <span className="text-xs ml-1">OVR</span>
+              </div>
+              {/* Condensed Stats */}
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                <div className="flex justify-between">
+                  <span>DEF</span>
+                  <span>85</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>OFF</span>
+                  <span>89</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>MEC</span>
+                  <span>87</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>CHA</span>
+                  <span>86</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>IQ</span>
+                  <span>88</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>SYNC</span>
+                  <span>87</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Super Rare Card - Top/Front */}
+          <motion.div
+            initial={{ opacity: 0, rotate: 0 }}
+            animate={{ opacity: 1, rotate: 15 }}
+            transition={{ delay: 0.7 }}
+            className="absolute w-60 h-96 rounded-xl bg-gradient-to-br from-black via-gray-900 to-black border-2 border-white shadow-glow-super overflow-hidden"
+            style={{ top: '20px', right: '40px' }}
+          >
+            <div className="absolute inset-0 opacity-30 bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-pink-500/20 animate-pulse" />
+            <div className="absolute inset-0 opacity-40 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 animate-shimmer" />
+            <div className="absolute top-2 right-2 bg-white text-black font-bold px-2 py-1 rounded-full text-xs z-10">
+              Super
+            </div>
+            <div className="absolute top-2 left-2 bg-black/80 text-white px-2 py-1 rounded-full text-xs font-bold border border-white/20 z-10">
+              2%
+            </div>
+            <div className="w-full h-32 flex items-center justify-center text-white">
+              <User size={32} className="text-white" />
+            </div>
+            <div className="p-4 text-white">
+              <h3 className="font-bold text-lg mb-2">Zen</h3>
+              <p className="text-sm text-gray-300 mb-3">Top Team • EU</p>
+              <div className="text-center mb-3">
+                <span className="text-2xl font-bold">99</span>
+                <span className="text-sm text-gray-400 ml-1">OVR</span>
+              </div>
+              {/* Condensed Stats */}
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                <div className="flex justify-between">
+                  <span>DEF</span>
+                  <span>99</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>OFF</span>
+                  <span>99</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>MEC</span>
+                  <span>99</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>CHA</span>
+                  <span>99</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>IQ</span>
+                  <span>99</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>SYNC</span>
+                  <span>99</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+          </div>
         </motion.div>
       </section>
-      )}
-
-      {/* Pack Opening Section - Moved Up */}
-      <section className="relative z-0 max-w-6xl mx-auto px-6 pb-16 mt-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8, duration: 0.8 }}
-          className="text-center mb-8"
-        >
-          <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent">
-            {session ? "Choose Your Pack" : "Try Opening a Pack"}
-          </h2>
-          <p className="text-blue-200 text-lg max-w-2xl mx-auto">
-            {session 
-              ? "Each pack contains 5 cards with different rarity distributions. Will you get the legendary Super rare you're looking for?"
-              : "See what you could get! Each pack contains 5 cards with different rarities. Sign in to start collecting for real."
-            }
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 1.0, duration: 0.8 }}
-          className="flex justify-center mb-16"
-        >
-          <PackOpening onPackOpened={setCredits} />
-        </motion.div>
-      </section>
-
+      
       {/* Features Section */}
       <section className="relative z-0 max-w-7xl mx-auto px-6 pb-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.2, duration: 0.8 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16"
+          className="grid grid-cols-1 md:grid-cols-3 gap-8"
         >
           {features.map((feature, index) => {
             const Icon = feature.icon;
@@ -294,7 +425,7 @@ export default function Home() {
           {!session && (
             <div className="flex justify-center px-3 py-2 mt-4">
               <button
-                onClick={() => signIn('google')}
+                onClick={() => signIn('google', { callbackUrl: '/packs' })}
                 className="w-full md:w-1/2 flex items-center justify-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all duration-200"
               >
                 <img src="/google_logo.svg" alt="Google logo" className="w-5 h-5" />
