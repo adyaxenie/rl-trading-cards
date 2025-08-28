@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Swords, Zap, Users, Clock, Trophy, Star, Target, Shield, Crown, Link, Car } from 'lucide-react';
 import { useSession, signIn } from 'next-auth/react';
@@ -9,6 +10,8 @@ import Footer from '@/components/Footer';
 
 export default function Battles() {
   const { data: session, status } = useSession();
+
+  const navigate = useRouter();
 
 //   if (status === 'unauthenticated') {
 //     return (
@@ -46,7 +49,6 @@ export default function Battles() {
           transition={{ delay: 0.3 }}
           className="bg-gradient-to-r from-orange-600/20 to-red-600/20 backdrop-blur-sm border border-orange-400/30 rounded-2xl p-12 text-center mb-16"
         >
-          <div className="text-6xl mb-6">⚔️</div>
           <h2 className="text-4xl font-bold text-white mb-4">Coming Soon</h2>
           <p className="text-xl text-orange-200 mb-6 max-w-2xl mx-auto">
             Working hard to bring you a system where your cards come to life in simulated 3v3s.
@@ -96,7 +98,7 @@ export default function Battles() {
             <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:border-red-400/30 transition-all duration-300">
               <Crown className="w-12 h-12 text-red-400 mx-auto mb-4" />
               <h4 className="text-xl font-bold text-white mb-3">Ranked System</h4>
-              <p className="text-gray-300">Climb through ranked tiers from Bronze to Grand Champion, just like Rocket League.</p>
+              <p className="text-gray-300">Climb through ranked tiers from Bronze to Grand Champion (Top 10 for SSL).</p>
             </div>
 
             {/* <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:border-orange-400/30 transition-all duration-300">
@@ -122,7 +124,7 @@ export default function Battles() {
               <div className="bg-blue-500/20 border border-blue-400/30 rounded-lg p-4 mb-4">
                 <div className="w-16 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg mx-auto mb-3"></div>
                 <div className="text-white font-semibold">Your Deck</div>
-                <div className="text-blue-300 text-sm">5 Cards</div>
+                <div className="text-blue-300 text-sm">3 Cards</div>
               </div>
             </div>
 
@@ -137,7 +139,7 @@ export default function Battles() {
               <div className="bg-red-500/20 border border-red-400/30 rounded-lg p-4 mb-4">
                 <div className="w-16 h-20 bg-gradient-to-br from-red-500 to-red-700 rounded-lg mx-auto mb-3"></div>
                 <div className="text-white font-semibold">Opponent</div>
-                <div className="text-red-300 text-sm">5 Cards</div>
+                <div className="text-red-300 text-sm">3 Cards</div>
               </div>
             </div>
           </div>
@@ -156,18 +158,15 @@ export default function Battles() {
             While battles are in development, keep collecting and building your roster. The stronger your collection, 
             the better prepared you'll be for epic card battles!
           </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <motion.button
-              disabled
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-6 py-4 rounded-xl font-semibold transition-all duration-300 flex items-center space-x-2"
-              whileHover={{ scale: 1.02 }}
-              onClick={() => {window.location.href = '/inventory';}}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg
+                         font-semibold transition-colors"
+                onClick={() => navigate.push('/inventory')}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
-                <span>Build Your Collection</span>
+              Build Your Showcase
             </motion.button>
-
-          </div>
         </motion.div>
       </div>
 

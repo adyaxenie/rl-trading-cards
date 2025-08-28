@@ -117,13 +117,13 @@ export default function Home() {
         onUsernameSet={handleUsernameSet}
       />
 
-      <section className="relative max-w-7xl mx-auto px-6 pt-20">
+      <section className="relative max-w-7xl mx-auto px-6 pt-20 ,b">
         {/* Hero Section with Cards */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="sm:flex justify-between mb-16"
+          className="sm:flex justify-between mb-32"
         >
         {/* Header Content */}
         <div className="text-center lg:text-left w-full lg:w-2/3">
@@ -196,9 +196,9 @@ export default function Home() {
             <div className="w-full h-16 flex items-center justify-center">
               <User size={20} className="text-black" />
             </div>
-            <div className="p-2 text-black">
+            <div className="p-2 text-white">
               <h3 className="font-bold text-xs mb-1">Pro</h3>
-              <p className="text-xs mb-1">Team</p>
+              <p className="text-xs text-gray-300 mb-1">Team</p>
               <div className="text-center mb-2">
                 <span className="text-sm font-bold">75</span>
                 <span className="text-xs ml-1">OVR</span>
@@ -248,11 +248,11 @@ export default function Home() {
               13%
             </div>
             <div className="w-full h-20 flex items-center justify-center">
-              <User size={24} className="text-black" />
+              <User size={24} className="text-white" />
             </div>
-            <div className="p-3 text-black">
+            <div className="p-3 text-white">
               <h3 className="font-bold text-sm mb-1">Elite Pro</h3>
-              <p className="text-xs mb-1">Team • NA</p>
+              <p className="text-xs text-gray-300 mb-1">Team • NA</p>
               <div className="text-center mb-2">
                 <span className="text-lg font-bold">87</span>
                 <span className="text-xs ml-1">OVR</span>
@@ -308,7 +308,7 @@ export default function Home() {
             </div>
             <div className="p-4 text-white">
               <h3 className="font-bold text-lg mb-2">Zen</h3>
-              <p className="text-sm text-gray-300 mb-3">Top Team • EU</p>
+              <p className="text-sm text-gray-300 mb-3">Vitality • EU</p>
               <div className="text-center mb-3">
                 <span className="text-2xl font-bold">99</span>
                 <span className="text-sm text-gray-400 ml-1">OVR</span>
