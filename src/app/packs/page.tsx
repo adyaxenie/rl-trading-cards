@@ -11,7 +11,7 @@ import { BackgroundBeams } from '@/components/BackgroundBeams';
 import Footer from '@/components/Footer';
 
 export default function Packs() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [credits, setCredits] = useState<number>(0);
   const [lastEarned, setLastEarned] = useState<Date | null>(null);
   const [timeUntilNext, setTimeUntilNext] = useState<number>(0);
